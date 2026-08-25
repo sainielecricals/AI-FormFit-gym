@@ -1,0 +1,1695 @@
+
+let exercises = [];
+let currentExercise = null;
+let cameraStream = null;
+
+let poseTimer = null;
+let frameCanvas = null;
+let poseBusy = false;
+let requestSerial = 0;
+
+// V9: browser-side MediaPipe keeps live pose tracking independent from
+// the Python form-analysis API. The API receives landmarks only.
+let browserPose = null;
+let browserPoseReady = false;
+let browserPoseBusy = false;
+let lastPoseSend = 0;
+const POSE_SEND_INTERVAL = 45; // ~22 FPS form decisions
+
+
+// ------------------------------------------------------------
+// SMOOTH PIPE STATE
+// ------------------------------------------------------------
+// The Python engine remains responsible for form decisions.
+// These values only smooth what the user sees on screen.
+const visual = {
+  pipes: [],
+  targets: [],
+  score: 0,
+  reps: 0,
+  status: "yellow",
+  message: "",
+  lastView: "",
+  lastTime: performance.now(),
+  frameId: 0
+};
+
+let formClockTimer = null;
+let formStartTime = 0;
+
+const state = {
+  goal: "muscle gain",
+  equipment: ["Bodyweight"]
+};
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+
+function showView(name) {
+  $$(".view").forEach(v =>
+    v.classList.remove("active-view")
+  );
+
+  const target = $(`#${name}View`);
+  if (target) target.classList.add("active-view");
+
+  $$(".nav-item").forEach(b =>
+    b.classList.toggle(
+      "active",
+      b.dataset.view === name
+    )
+  );
+
+  const titles = {
+    home: "Train with better form.",
+    recommend: "Build your workout.",
+    meal: "Eat smarter for your goal.",
+    library: "Choose your movement.",
+    form: "Practice with better form.",
+    history: "My workout history."
+  };
+
+  $("#pageTitle").textContent =
+    titles[name] || "FORMFIT AI";
+
+  if (name === "history") {
+    loadHistory();
+  }
+}
+
+function bindNavigation() {
+  $$("[data-view]").forEach(btn => {
+    btn.addEventListener("click", () =>
+      showView(btn.dataset.view)
+    );
+  });
+
+  $("#quickAI").onclick = () =>
+    showView("recommend");
+
+  $("#quickLibrary").onclick = () =>
+    showView("library");
+
+  const endSessionBtn = $("#endSessionBtn");
+  if (endSessionBtn) {
+    endSessionBtn.onclick = endAndSaveFormSession;
+  }
+
+  const refreshHistory = $("#refreshHistory");
+  if (refreshHistory) {
+    refreshHistory.onclick = loadHistory;
+  }
+
+  const historyNav = document.querySelector('[data-view="history"]');
+  if (historyNav) {
+    historyNav.addEventListener("click", () => {
+      loadHistory();
+    });
+  }
+}
+
+
+/* ============================================================
+   FORMFIT — PERSONALIZED INDIAN MEAL PLAN
+   UI + approximate nutrition only. Does not touch pose/model code.
+   ============================================================ */
+
+const mealState = {
+  goal: "bulking",
+  preference: "vegetarian"
+};
+
+const MEAL_GOALS = {
+  bulking: {
+    label: "Bulking",
+    calorieFactor: 1.15,
+    proteinPerKg: 1.8,
+    description: "Calorie-surplus style plan with higher calories, protein and carbohydrates."
+  },
+  muscle_gain: {
+    label: "Muscle Gain",
+    calorieFactor: 1.08,
+    proteinPerKg: 1.8,
+    description: "Balanced high-protein plan with sufficient calories and carbohydrates."
+  },
+  cutting: {
+    label: "Cutting",
+    calorieFactor: 0.86,
+    proteinPerKg: 2.0,
+    description: "Controlled calories with high protein, vegetables and filling foods."
+  },
+  muscle_loss: {
+    label: "Muscle Loss",
+    calorieFactor: 0.80,
+    proteinPerKg: 2.0,
+    description: "Calorie-deficit oriented plan while keeping protein relatively high."
+  },
+  maintaining: {
+    label: "Maintaining",
+    calorieFactor: 1.00,
+    proteinPerKg: 1.6,
+    description: "Balanced maintenance-style intake for everyday eating."
+  }
+};
+
+const MEAL_FOOD = {
+  vegetarian: {
+    breakfast: [
+      ["Oats", 60, "g", 228, 7.8, 38.0, 4.2],
+      ["Milk", 250, "ml", 150, 8.0, 12.0, 8.0],
+      ["Banana", 1, "medium", 105, 1.3, 27.0, 0.4],
+      ["Peanut butter", 15, "g", 90, 3.8, 3.0, 7.5]
+    ],
+    mid: [
+      ["Curd", 200, "g", 122, 7.0, 9.0, 6.0],
+      ["Apple", 1, "medium", 95, 0.5, 25.0, 0.3]
+    ],
+    lunch: [
+      ["Roti", 3, "medium", 300, 10.0, 60.0, 5.0],
+      ["Dal", 1, "cup", 180, 10.0, 30.0, 3.0],
+      ["Paneer", 80, "g", 212, 14.5, 4.0, 15.5],
+      ["Mixed vegetables", 200, "g", 100, 4.0, 18.0, 2.0],
+      ["Curd", 150, "g", 92, 5.3, 6.8, 4.5]
+    ],
+    evening: [
+      ["Roasted peanuts", 30, "g", 170, 7.5, 5.0, 14.5],
+      ["Buttermilk", 250, "ml", 70, 4.0, 8.0, 2.0]
+    ],
+    dinner: [
+      ["Rice", 180, "g cooked", 234, 4.9, 51.0, 0.5],
+      ["Rajma", 1, "cup", 215, 13.0, 39.0, 1.5],
+      ["Paneer", 60, "g", 159, 10.9, 3.0, 11.6],
+      ["Salad", 200, "g", 55, 2.0, 11.0, 0.5]
+    ],
+    bedtime: [
+      ["Milk", 200, "ml", 120, 6.4, 9.6, 6.4]
+    ]
+  },
+  egg: {
+    breakfast: [
+      ["Oats", 60, "g", 228, 7.8, 38.0, 4.2],
+      ["Milk", 250, "ml", 150, 8.0, 12.0, 8.0],
+      ["Banana", 1, "medium", 105, 1.3, 27.0, 0.4],
+      ["Peanut butter", 15, "g", 90, 3.8, 3.0, 7.5]
+    ],
+    mid: [
+      ["Boiled eggs", 2, "eggs", 144, 12.6, 0.8, 9.6],
+      ["Guava", 1, "medium", 68, 2.6, 14.0, 1.0]
+    ],
+    lunch: [
+      ["Roti", 3, "medium", 300, 10.0, 60.0, 5.0],
+      ["Dal", 1, "cup", 180, 10.0, 30.0, 3.0],
+      ["Eggs", 2, "eggs", 144, 12.6, 0.8, 9.6],
+      ["Mixed vegetables", 200, "g", 100, 4.0, 18.0, 2.0],
+      ["Curd", 150, "g", 92, 5.3, 6.8, 4.5]
+    ],
+    evening: [
+      ["Poha", 180, "g cooked", 230, 5.5, 38.0, 6.0],
+      ["Peanuts", 15, "g", 85, 3.8, 2.5, 7.2]
+    ],
+    dinner: [
+      ["Rice", 180, "g cooked", 234, 4.9, 51.0, 0.5],
+      ["Dal", 1, "cup", 180, 10.0, 30.0, 3.0],
+      ["Egg bhurji", 3, "eggs", 216, 18.9, 1.2, 14.4],
+      ["Salad", 200, "g", 55, 2.0, 11.0, 0.5]
+    ],
+    bedtime: [
+      ["Milk", 200, "ml", 120, 6.4, 9.6, 6.4]
+    ]
+  },
+  non_vegetarian: {
+    breakfast: [
+      ["Oats", 60, "g", 228, 7.8, 38.0, 4.2],
+      ["Milk", 250, "ml", 150, 8.0, 12.0, 8.0],
+      ["Banana", 1, "medium", 105, 1.3, 27.0, 0.4],
+      ["Peanut butter", 15, "g", 90, 3.8, 3.0, 7.5]
+    ],
+    mid: [
+      ["Boiled eggs", 2, "eggs", 144, 12.6, 0.8, 9.6],
+      ["Apple", 1, "medium", 95, 0.5, 25.0, 0.3]
+    ],
+    lunch: [
+      ["Roti", 3, "medium", 300, 10.0, 60.0, 5.0],
+      ["Dal", 1, "cup", 180, 10.0, 30.0, 3.0],
+      ["Chicken", 120, "g cooked", 198, 37.0, 0.0, 4.3],
+      ["Mixed vegetables", 200, "g", 100, 4.0, 18.0, 2.0],
+      ["Curd", 150, "g", 92, 5.3, 6.8, 4.5]
+    ],
+    evening: [
+      ["Roasted chana", 40, "g", 160, 8.0, 24.0, 2.5],
+      ["Buttermilk", 250, "ml", 70, 4.0, 8.0, 2.0]
+    ],
+    dinner: [
+      ["Rice", 180, "g cooked", 234, 4.9, 51.0, 0.5],
+      ["Dal", 1, "cup", 180, 10.0, 30.0, 3.0],
+      ["Chicken", 120, "g cooked", 198, 37.0, 0.0, 4.3],
+      ["Salad", 200, "g", 55, 2.0, 11.0, 0.5]
+    ],
+    bedtime: [
+      ["Milk", 200, "ml", 120, 6.4, 9.6, 6.4]
+    ]
+  }
+};
+
+const MEAL_LABELS = {
+  breakfast: "BREAKFAST",
+  mid: "MID-MORNING SNACK",
+  lunch: "LUNCH",
+  evening: "EVENING SNACK",
+  dinner: "DINNER",
+  bedtime: "BEDTIME SNACK"
+};
+
+function mealAgeFactor(age) {
+  if (age <= 25) return 1.05;
+  if (age <= 35) return 1.00;
+  if (age <= 50) return 0.95;
+  return 0.90;
+}
+
+function round1(n) { return Math.round(n * 10) / 10; }
+function round0(n) { return Math.round(n); }
+
+function mealBasePlan(preference) {
+  const foods = MEAL_FOOD[preference];
+  return Object.keys(MEAL_LABELS).map(key => ({
+    key,
+    name: MEAL_LABELS[key],
+    items: foods[key].map(x => [...x])
+  }));
+}
+
+function scaleMealPlan(plan, calorieTarget, proteinTarget) {
+  const baseCalories = plan.reduce(
+    (sum, meal) => sum + meal.items.reduce((s, x) => s + x[3], 0), 0
+  );
+  const baseProtein = plan.reduce(
+    (sum, meal) => sum + meal.items.reduce((s, x) => s + x[4], 0), 0
+  );
+
+  // First scale to calories, then use a small protein-preserving adjustment.
+  const scale = Math.max(0.68, Math.min(1.38, calorieTarget / baseCalories));
+  const proteinNeedFactor = Math.max(0.92, Math.min(1.12, proteinTarget / (baseProtein * scale)));
+
+  return plan.map(meal => ({
+    ...meal,
+    items: meal.items.map(x => {
+      const quantity = typeof x[1] === "number" ? round1(x[1] * scale) : x[1];
+      return {
+        food: x[0],
+        quantity,
+        unit: x[2],
+        calories: round0(x[3] * scale),
+        protein: round1(x[4] * scale * proteinNeedFactor),
+        carbs: round1(x[5] * scale),
+        fat: round1(x[6] * scale)
+      };
+    })
+  }));
+}
+
+function renderMealPlan(profile) {
+  const goal = MEAL_GOALS[profile.goal];
+  const baseKcal = profile.weight * 32 * mealAgeFactor(profile.age);
+  const calorieTarget = Math.round(baseKcal * goal.calorieFactor / 50) * 50;
+  const proteinTarget = Math.round(profile.weight * goal.proteinPerKg);
+
+  const plan = scaleMealPlan(
+    mealBasePlan(profile.preference),
+    calorieTarget,
+    proteinTarget
+  );
+
+  const totals = plan.reduce((acc, meal) => {
+    meal.items.forEach(item => {
+      acc.calories += item.calories;
+      acc.protein += item.protein;
+      acc.carbs += item.carbs;
+      acc.fat += item.fat;
+    });
+    return acc;
+  }, {calories: 0, protein: 0, carbs: 0, fat: 0});
+
+  const preferenceLabel = {
+    vegetarian: "Vegetarian",
+    egg: "Egg",
+    non_vegetarian: "Non-Vegetarian"
+  }[profile.preference];
+
+  const goalLabel = goal.label;
+
+  const result = $("#mealPlanResult");
+  result.innerHTML = `
+    <div class="meal-profile-card">
+      <div>
+        <span class="eyebrow">YOUR PERSONALIZED PLAN</span>
+        <h3>${escapeHtml(goalLabel)} • ${escapeHtml(preferenceLabel)}</h3>
+      </div>
+      <div class="meal-profile-stats">
+        <span><b>${profile.age}</b> Age</span>
+        <span><b>${profile.weight} kg</b> Weight</span>
+        <span><b>~${round0(calorieTarget)}</b> kcal target</span>
+        <span><b>~${proteinTarget} g</b> protein target</span>
+      </div>
+    </div>
+
+    <div class="meal-plan-grid">
+      ${plan.map(meal => `
+        <article class="meal-card">
+          <div class="meal-card-head">
+            <div>
+              <span class="meal-number">${MEAL_LABELS[meal.key]}</span>
+              <h3>${escapeHtml(meal.name)}</h3>
+            </div>
+            <span class="meal-kcal">~${meal.items.reduce((s,x)=>s+x.calories,0)} kcal</span>
+          </div>
+          <div class="meal-items">
+            ${meal.items.map(item => `
+              <div class="meal-item">
+                <div>
+                  <strong>${escapeHtml(item.food)}</strong>
+                  <small>${item.quantity} ${escapeHtml(item.unit)}</small>
+                </div>
+                <div class="meal-item-macros">
+                  <b>${item.calories} kcal</b>
+                  <span>P ${item.protein}g</span>
+                  <span>C ${item.carbs}g</span>
+                  <span>F ${item.fat}g</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="meal-total">
+            <span>Meal total</span>
+            <b>~${meal.items.reduce((s,x)=>s+x.calories,0)} kcal</b>
+            <span>Protein ${round1(meal.items.reduce((s,x)=>s+x.protein,0))}g</span>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+
+    <div class="daily-summary-card">
+      <div>
+        <span class="eyebrow">DAILY NUTRITION SUMMARY</span>
+        <h3>Approximate daily intake</h3>
+        <p>${escapeHtml(goal.description)}</p>
+      </div>
+      <div class="daily-summary-grid">
+        <div><span>Total Calories</span><strong>~${round0(totals.calories)} kcal</strong></div>
+        <div><span>Total Protein</span><strong>~${round1(totals.protein)} g</strong></div>
+        <div><span>Total Carbohydrates</span><strong>~${round1(totals.carbs)} g</strong></div>
+        <div><span>Total Fat</span><strong>~${round1(totals.fat)} g</strong></div>
+      </div>
+    </div>
+
+    <div class="meal-disclaimer">
+      Nutrition values are approximate and should be adjusted according to individual needs.
+      For medical or clinical nutrition requirements, consult a qualified dietitian.
+    </div>
+  `;
+}
+
+function bindMealPlan() {
+  $$("#mealView .meal-choice").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const field = btn.dataset.mealField;
+      const group = btn.parentElement;
+      group.querySelectorAll(".meal-choice").forEach(x => x.classList.remove("selected"));
+      btn.classList.add("selected");
+      mealState[field] = btn.dataset.value;
+    });
+  });
+
+  const form = $("#mealPlanForm");
+  if (!form) return;
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const age = Number($("#mealAge").value);
+    const weight = Number($("#mealWeight").value);
+
+    if (!Number.isFinite(age) || age < 16 || age > 80) {
+      alert("Please enter an age between 16 and 80.");
+      return;
+    }
+    if (!Number.isFinite(weight) || weight < 35 || weight > 200) {
+      alert("Please enter a weight between 35 and 200 kg.");
+      return;
+    }
+
+    renderMealPlan({
+      age,
+      weight,
+      goal: mealState.goal,
+      preference: mealState.preference
+    });
+  });
+}
+
+async function loadExercises() {
+  const res = await fetch("/api/exercises");
+  const data = await res.json();
+
+  exercises = data.exercises || [];
+
+  $("#exerciseCount").textContent =
+    exercises.length;
+
+  const categories = [
+    ...new Set(
+      exercises.map(x => x.category)
+    )
+  ].sort();
+
+  $("#categoryFilter").innerHTML =
+    `<option value="">All categories</option>` +
+    categories.map(
+      c => `<option>${escapeHtml(c)}</option>`
+    ).join("");
+
+  renderExercises();
+}
+
+function renderExercises() {
+  const query =
+    ($("#searchInput").value || "")
+      .toLowerCase();
+
+  const category =
+    $("#categoryFilter").value;
+
+  const filtered = exercises.filter(ex => {
+    const text =
+      ex.name.toLowerCase() +
+      " " +
+      (ex.primary_muscles || [])
+        .join(" ")
+        .toLowerCase();
+
+    return (
+      text.includes(query) &&
+      (!category || ex.category === category)
+    );
+  });
+
+  $("#exerciseGrid").innerHTML =
+    filtered.map(ex => {
+      const status =
+        ex.form_check_status || "COMING_SOON";
+
+      const cls =
+        status === "READY"
+          ? "ready"
+          : status === "BASIC"
+            ? "basic"
+            : "coming";
+
+      const statusText =
+        status === "READY"
+          ? "AI FORM READY"
+          : status === "BASIC"
+            ? "BASIC CHECK"
+            : "LIBRARY";
+
+      return `
+        <article
+          class="exercise-card"
+          data-id="${escapeHtml(ex.id)}"
+        >
+          <div class="exercise-top">
+            <span class="tiny-label">
+              ${escapeHtml(ex.category)}
+            </span>
+            <span class="${cls} tiny-label">
+              ${statusText}
+            </span>
+          </div>
+
+          <h4>${escapeHtml(ex.name)}</h4>
+
+          <p>
+            ${escapeHtml(
+              (ex.primary_muscles || [])
+                .join(" • ")
+            )}
+          </p>
+
+          ${(ex.equipment || [])
+            .slice(0, 3)
+            .map(
+              e =>
+                `<span class="tag">
+                  ${escapeHtml(e)}
+                </span>`
+            )
+            .join("")}
+        </article>
+      `;
+    })
+    .join("");
+
+  $$(".exercise-card").forEach(card => {
+    card.onclick = () =>
+      selectExercise(card.dataset.id);
+  });
+}
+
+function resetVisualState() {
+  visual.pipes = [];
+  visual.targets = [];
+  visual.score = 0;
+  visual.reps = 0;
+  visual.status = "yellow";
+  visual.message = "";
+  visual.lastView = "";
+  visual.frameId++;
+  drawClearOverlay();
+}
+
+async function selectExercise(id) {
+  const ex =
+    exercises.find(x => x.id === id);
+
+  if (!ex) return;
+
+  currentExercise = ex;
+  resetVisualState();
+
+  $("#selectedExerciseTitle")
+    .textContent = ex.name;
+
+  $("#selectedExerciseMeta")
+    .textContent =
+      `${ex.category} • ${ex.difficulty} • ` +
+      `${(ex.primary_muscles || []).join(", ")} • ` +
+      `${ex.form_check_status}`;
+
+  if (ex.form_check_status !== "READY") {
+    setCoachStatus(
+      "LIBRARY MODE — FORM RULE NOT READY",
+      "var(--muted)"
+    );
+    showView("form");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:5050/api/session",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          exercise: ex.id
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Pose API unavailable");
+    }
+
+    setCoachStatus(
+      "AI FORM CHECK READY",
+      "var(--accent)"
+    );
+
+  } catch {
+    setCoachStatus(
+      "START POSE API FIRST",
+      "var(--red)"
+    );
+  }
+
+  showView("form");
+}
+
+function setCoachStatus(text, color) {
+  const status = $("#coachStatus");
+
+  status.textContent = text;
+  status.style.color = color;
+}
+
+function ensureOverlay() {
+  const wrap = $("#cameraArea");
+
+  if (!wrap) return null;
+
+  let canvas = $("#poseOverlay");
+
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    canvas.id = "poseOverlay";
+
+    canvas.style.position = "absolute";
+    canvas.style.inset = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "3";
+
+    wrap.appendChild(canvas);
+  }
+
+  return canvas;
+}
+
+function resizeOverlay() {
+  const video = $("#cameraVideo");
+  const canvas = ensureOverlay();
+
+  if (
+    !video ||
+    !canvas ||
+    !video.videoWidth ||
+    !video.videoHeight
+  ) {
+    return;
+  }
+
+  if (
+    canvas.width !== video.videoWidth ||
+    canvas.height !== video.videoHeight
+  ) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  }
+}
+
+function drawClearOverlay() {
+  const canvas = $("#poseOverlay");
+
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
+function pointToCanvas(point, canvas) {
+  // The video uses object-fit: cover and CSS scaleX(-1). The canvas must
+  // use the exact same crop/scale math; otherwise pipes drift from the body.
+  const video = $('#cameraVideo');
+  const vw = video?.videoWidth || canvas.width;
+  const vh = video?.videoHeight || canvas.height;
+  const cw = canvas.width;
+  const ch = canvas.height;
+
+  const scale = Math.max(cw / vw, ch / vh);
+  const drawW = vw * scale;
+  const drawH = vh * scale;
+  const offsetX = (cw - drawW) * 0.5;
+  const offsetY = (ch - drawH) * 0.5;
+
+  // Mirror exactly once because the preview video is scaleX(-1).
+  return {
+    x: offsetX + (1 - Number(point.x)) * drawW,
+    y: offsetY + Number(point.y) * drawH
+  };
+}
+
+function smoothNumber(oldValue, newValue, factor) {
+  return oldValue + (newValue - oldValue) * factor;
+}
+
+function smoothPoint(oldPoint, newPoint, factor) {
+  if (!oldPoint) return {x: newPoint.x, y: newPoint.y};
+
+  const dx = newPoint.x - oldPoint.x;
+  const dy = newPoint.y - oldPoint.y;
+  const distance = Math.hypot(dx, dy);
+  const adaptive = distance > 0.055
+    ? 0.985
+    : distance > 0.025
+      ? 0.95
+      : 0.86;
+  const k = Math.max(factor, adaptive);
+
+  return {
+    x: smoothNumber(oldPoint.x, newPoint.x, k),
+    y: smoothNumber(oldPoint.y, newPoint.y, k)
+  };
+}
+
+function pipeSegmentDistance(a, b, x, y) {
+  const direct =
+    Math.hypot(a.x - x.x, a.y - x.y) +
+    Math.hypot(b.x - y.x, b.y - y.y);
+
+  const reverse =
+    Math.hypot(a.x - y.x, a.y - y.y) +
+    Math.hypot(b.x - x.x, b.y - x.y);
+
+  return Math.min(direct, reverse);
+}
+
+function smoothPipes(newPipes) {
+  // Match segments by their geometry, never by array index. If a low-
+  // confidence joint disappears, the remaining pipe order can change.
+  const factor = 0.92;
+  const oldPipes = visual.pipes || [];
+  const used = new Set();
+  const result = [];
+
+  for (const next of newPipes) {
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+
+    for (let i = 0; i < oldPipes.length; i++) {
+      if (used.has(i)) continue;
+      const old = oldPipes[i];
+      const d = pipeSegmentDistance(old.a, old.b, next.a, next.b);
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestIndex = i;
+      }
+    }
+
+    const MAX_MATCH_DISTANCE = 0.24;
+    const old = bestIndex >= 0 && bestDistance <= MAX_MATCH_DISTANCE
+      ? oldPipes[bestIndex]
+      : null;
+
+    if (bestIndex >= 0 && old) used.add(bestIndex);
+
+    result.push({
+      a: smoothPoint(old?.a, next.a, factor),
+      b: smoothPoint(old?.b, next.b, factor),
+      status: next.status
+    });
+  }
+
+  visual.pipes = result;
+}
+
+function smoothTargets(newTargets) {
+  // Yellow target should follow corrections quickly.
+  const factor = 0.94;
+
+  if (!visual.targets.length) {
+    visual.targets =
+      newTargets.map(target => ({
+        actual: {...target.actual},
+        desired: {...target.desired},
+        label: target.label
+      }));
+
+    return;
+  }
+
+  visual.targets =
+    newTargets.map((next, i) => {
+      const old = visual.targets[i];
+
+      if (!old) {
+        return {
+          actual: {...next.actual},
+          desired: {...next.desired},
+          label: next.label
+        };
+      }
+
+      return {
+        actual: smoothPoint(
+          old.actual,
+          next.actual,
+          factor
+        ),
+        desired: smoothPoint(
+          old.desired,
+          next.desired,
+          factor
+        ),
+        label: next.label
+      };
+    });
+}
+
+function drawPoseResult(data) {
+  const canvas = ensureOverlay();
+
+  if (!canvas) return;
+
+  resizeOverlay();
+
+  smoothPipes(data.pipes || []);
+  smoothTargets(data.targets || []);
+
+  visual.score = data.score ?? visual.score;
+  visual.reps = data.reps ?? visual.reps;
+  visual.status = data.status || visual.status;
+  visual.message = data.message || "";
+  visual.lastView = data.view || visual.lastView || "";
+
+  // IMPORTANT:
+  // Rendering happens continuously with requestAnimationFrame,
+  // while API frames arrive more slowly.
+  // This makes the pipes visually smooth instead of jumping.
+}
+
+function renderSmoothOverlay() {
+  const canvas = ensureOverlay();
+
+  if (!canvas) {
+    requestAnimationFrame(
+      renderSmoothOverlay
+    );
+    return;
+  }
+
+  resizeOverlay();
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  // ----------------------------------------------------------
+  // SMOOTH GREEN / RED / YELLOW PIPES
+  // ----------------------------------------------------------
+  for (const pipe of visual.pipes) {
+    const a =
+      pointToCanvas(pipe.a, canvas);
+
+    const b =
+      pointToCanvas(pipe.b, canvas);
+
+    const color =
+      pipe.status === "green"
+        ? "#20e070"
+        : pipe.status === "yellow"
+          ? "#f4d35e"
+          : "#ff4d5d";
+
+    ctx.beginPath();
+
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.shadowBlur = 7;
+    ctx.shadowColor = color;
+
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+  }
+
+  // ----------------------------------------------------------
+  // YELLOW DOTTED CORRECTION GUIDE
+  // ----------------------------------------------------------
+  for (const target of visual.targets) {
+    const actual =
+      pointToCanvas(
+        target.actual,
+        canvas
+      );
+
+    const desired =
+      pointToCanvas(
+        target.desired,
+        canvas
+      );
+
+    ctx.beginPath();
+
+    ctx.setLineDash([
+      6,
+      8
+    ]);
+
+    ctx.moveTo(
+      actual.x,
+      actual.y
+    );
+
+    ctx.lineTo(
+      desired.x,
+      desired.y
+    );
+
+    ctx.strokeStyle =
+      "#f4d35e";
+
+    ctx.lineWidth = 2.5;
+
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+
+    ctx.arc(
+      desired.x,
+      desired.y,
+      7,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle =
+      "#f4d35e";
+
+    ctx.fill();
+
+    ctx.font =
+      "bold 13px Inter";
+
+    ctx.fillStyle =
+      "#f4d35e";
+
+    ctx.fillText(
+      target.label,
+      desired.x + 11,
+      desired.y - 8
+    );
+  }
+
+  requestAnimationFrame(
+    renderSmoothOverlay
+  );
+}
+
+function updateFormUI(data) {
+  const statusText =
+    data.status === "green" ? "✓ CORRECT FORM" :
+    data.status === "red" ? "✕ FIX YOUR FORM" :
+    "→ ADJUST POSITION";
+
+  const statusColor =
+    data.status === "green" ? "var(--accent)" :
+    data.status === "red" ? "var(--red)" :
+    "var(--yellow)";
+
+  setCoachStatus(
+    `${statusText} • ${data.score}% • REPS ${data.reps}`,
+    statusColor
+  );
+
+  const title = $("#formModeName");
+  if (title) title.textContent =
+    (data.exercise_name || data.exercise || currentExercise?.name || "READY").toUpperCase();
+
+  const meta = $("#selectedExerciseMeta");
+  if (meta) {
+    meta.textContent =
+      `${data.message || "Follow your form guide"} • View: ${data.view || "SIDE"} • Score: ${data.score ?? 0}% • Reps: ${data.reps ?? 0}`;
+  }
+
+  const score = $("#metricScore");
+  if (score) score.textContent = Number(data.score ?? 0);
+
+  const scoreLabel = $("#scoreLabel");
+  if (scoreLabel) {
+    scoreLabel.textContent =
+      data.status === "green" ? "GOOD FORM" :
+      data.status === "red" ? "NEEDS IMPROVEMENT" : "CHECK POSITION";
+    scoreLabel.style.color = statusColor;
+  }
+
+  const angles = data.angles || {};
+  const knee = angles.knee ?? angles.left_knee ?? angles.right_knee ?? angles.knee_angle;
+  const back = angles.back ?? angles.back_angle;
+  const elbow = angles.elbow ?? angles.left_elbow ?? angles.right_elbow;
+
+  const kneeEl = $("#metricKnee");
+  if (kneeEl) kneeEl.textContent = knee != null ? `${Number(knee).toFixed(1)}°` : "—";
+  const backEl = $("#metricBack");
+  if (backEl) backEl.textContent = back != null ? `${Number(back).toFixed(1)}°` : "—";
+
+  const kneeState = $("#kneeState");
+  if (kneeState) kneeState.textContent = knee != null ? (data.status === "red" ? "CHECK" : "GOOD") : "CHECK";
+  const backState = $("#backState");
+  if (backState) backState.textContent = back != null ? (data.status === "red" ? "CHECK" : "GOOD") : "CHECK";
+
+  const reps = $("#liveReps");
+  if (reps) reps.textContent = Number(data.reps ?? 0);
+
+  const bottom = $("#bottomStatus");
+  if (bottom) bottom.textContent =
+    data.status === "green" ? "RUNNING • GOOD FORM" :
+    data.status === "red" ? "RUNNING • CORRECT FORM" : "RUNNING • CHECK POSITION";
+  if (bottom) bottom.style.color = statusColor;
+
+  const guide = $("#guideText");
+  if (guide) guide.textContent =
+    data.status === "green"
+      ? "Correct position. Keep this alignment and complete the movement."
+      : (data.message ? `${data.message}. Follow the yellow dotted guide.` : "Follow the yellow dotted guide.");
+
+  const tip = $("#tipText");
+  if (tip) {
+    const cues = currentExercise?.coaching || [];
+    tip.textContent = data.status === "green"
+      ? (cues[0] || "Good form. Keep the movement controlled.")
+      : (data.message || cues[0] || "Follow the yellow dotted correction guide.");
+  }
+
+  const feedback = $("#feedbackList");
+  if (feedback && currentExercise) {
+    const cues = currentExercise.coaching || [];
+    const dynamic = [data.message, ...cues].filter(Boolean).slice(0, 4);
+    feedback.innerHTML = dynamic.map((cue, i) =>
+      `<div class="feedback-row"><span style="background:${i === 0 && data.status === "red" ? "var(--red)" : "var(--accent)"}"></span><b>${escapeHtml(cue)}</b></div>`
+    ).join("");
+  }
+
+  const analysis = $("#analysisValue");
+  if (analysis) analysis.textContent = data.inference_ms != null ? `${Number(data.inference_ms).toFixed(0)}ms` : "LIVE";
+  const meter = $("#analysisMeter");
+  if (meter && data.inference_ms != null) {
+    const pct = Math.max(25, Math.min(100, 100 - Number(data.inference_ms) * 1.5));
+    meter.style.width = `${pct}%`;
+  }
+}
+
+
+async function loadBrowserMediaPipe() {
+  if (window.Pose) return true;
+
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[data-formfit-pose="1"]');
+    if (existing) {
+      const wait = setInterval(() => {
+        if (window.Pose) {
+          clearInterval(wait);
+          resolve(true);
+        }
+      }, 50);
+      setTimeout(() => {
+        clearInterval(wait);
+        resolve(!!window.Pose);
+      }, 10000);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.dataset.formfitPose = '1';
+    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js';
+    script.onload = () => resolve(!!window.Pose);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
+async function setupBrowserPose() {
+  if (browserPoseReady && browserPose) return true;
+
+  const loaded = await loadBrowserMediaPipe();
+  if (!loaded) return false;
+
+  browserPose = new window.Pose({
+    locateFile: (file) =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  });
+
+  browserPose.setOptions({
+    modelComplexity: 0,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.55,
+    minTrackingConfidence: 0.55
+  });
+
+  browserPose.onResults(async (results) => {
+    if (!results.poseLandmarks || results.poseLandmarks.length < 33) {
+      visual.pipes = [];
+      visual.targets = [];
+      setCoachStatus('BODY NOT DETECTED', 'var(--red)');
+      return;
+    }
+
+    const now = performance.now();
+    if (now - lastPoseSend < POSE_SEND_INTERVAL || browserPoseBusy) return;
+    lastPoseSend = now;
+
+    const video = $('#cameraVideo');
+    const width = video?.videoWidth || 1280;
+    const height = video?.videoHeight || 720;
+
+    const landmarks = results.poseLandmarks.map((lm) => ({
+      x: Number(lm.x),
+      y: Number(lm.y),
+      z: Number(lm.z || 0),
+      visibility: Number(lm.visibility ?? 1),
+      presence: Number(lm.presence ?? 1)
+    }));
+
+    await sendLandmarksToAPI(landmarks, width, height);
+  });
+
+  browserPoseReady = true;
+  return true;
+}
+
+async function sendLandmarksToAPI(landmarks, width, height) {
+  if (browserPoseBusy || !currentExercise) return;
+
+  browserPoseBusy = true;
+  const serial = ++requestSerial;
+
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:5050/api/analyze_landmarks',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exercise: currentExercise.id,
+          width,
+          height,
+          landmarks
+        }),
+        cache: 'no-store'
+      }
+    );
+
+    if (!response.ok) throw new Error(`API ${response.status}`);
+
+    const data = await response.json();
+    if (serial !== requestSerial) return;
+
+    if (data.detected) {
+      drawPoseResult(data);
+      updateFormUI(data);
+    } else {
+      visual.pipes = [];
+      visual.targets = [];
+      setCoachStatus('BODY NOT DETECTED', 'var(--red)');
+    }
+  } catch (error) {
+    console.error('FORMFIT landmark API:', error);
+    setCoachStatus('FORM ENGINE NOT RUNNING', 'var(--red)');
+  } finally {
+    browserPoseBusy = false;
+  }
+}
+
+async function processBrowserPose() {
+  if (!browserPose || !browserPoseReady || !cameraStream || browserPoseBusy) return;
+
+  const video = $('#cameraVideo');
+  if (!video || video.readyState < 2) return;
+
+  try {
+    await browserPose.send({ image: video });
+  } catch (error) {
+    console.debug('Pose frame skipped:', error);
+  }
+}
+
+function startPoseLoop() {
+  stopPoseLoop();
+  let lastVideoTime = -1;
+
+  const tick = async () => {
+    if (!cameraStream) return;
+
+    const video = $('#cameraVideo');
+    if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
+      await processBrowserPose();
+    }
+
+    poseTimer = requestAnimationFrame(tick);
+  };
+
+  poseTimer = requestAnimationFrame(tick);
+}
+
+function stopPoseLoop() {
+  if (poseTimer) {
+    cancelAnimationFrame(poseTimer);
+    poseTimer = null;
+  }
+}
+
+
+function stopFormSession() {
+  // Stop only the current form session. Meal Plan and other UI state stay untouched.
+  if (formClockTimer) {
+    clearInterval(formClockTimer);
+    formClockTimer = null;
+  }
+
+  stopPoseLoop();
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+
+  const video = $("#cameraVideo");
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+  }
+
+  browserPoseBusy = false;
+  requestSerial++;
+}
+
+function getFormSessionPayload() {
+  const duration = formStartTime
+    ? Math.max(0, Math.floor((performance.now() - formStartTime) / 1000))
+    : 0;
+
+  return {
+    kind: "form_session",
+    exercise_id: currentExercise?.id || "",
+    exercise_name: currentExercise?.name || "",
+    reps: Number(visual.reps || 0),
+    score: Number(visual.score || 0),
+    duration_seconds: duration,
+    calories: Math.max(0, Math.round(duration * 0.08)),
+    status: visual.status || "",
+    view: visual.lastView || "",
+    message: visual.message || "",
+    payload: {
+      exercise: currentExercise?.name || "",
+      goal: state.goal || "",
+      score: Number(visual.score || 0),
+      reps: Number(visual.reps || 0)
+    }
+  };
+}
+
+async function saveCurrentFormSession() {
+  if (!currentExercise) return { ok: false, reason: "no_session" };
+
+  const payload = getFormSessionPayload();
+
+  const response = await fetch("/api/history", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    let detail = "Unable to save session";
+    try {
+      const data = await response.json();
+      detail = data.error || detail;
+    } catch (_) {}
+    throw new Error(detail);
+  }
+
+  return await response.json();
+}
+
+async function endAndSaveFormSession() {
+  const button = $("#endSessionBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Saving session…";
+  }
+
+  try {
+    await saveCurrentFormSession();
+    stopFormSession();
+
+    currentExercise = null;
+    resetVisualState();
+
+    const status = $("#coachStatus");
+    if (status) {
+      status.textContent = "SESSION SAVED";
+      status.style.color = "var(--accent)";
+    }
+
+    showView("history");
+    await loadHistory();
+
+  } catch (error) {
+    console.error("FORMFIT session save:", error);
+    const status = $("#coachStatus");
+    if (status) {
+      status.textContent = "SAVE FAILED — SESSION STILL ACTIVE";
+      status.style.color = "var(--red)";
+    }
+    if (button) {
+      button.disabled = false;
+      button.textContent = "✓ End & Save Session";
+    }
+  }
+}
+
+async function loadHistory() {
+  const list = $("#historyList");
+  const summary = $("#historySummary");
+  if (!list) return;
+
+  list.innerHTML = '<div class="day-card"><strong>Loading your history…</strong></div>';
+
+  try {
+    const response = await fetch("/api/history?limit=50", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) throw new Error("History unavailable");
+
+    const data = await response.json();
+    const items = Array.isArray(data.history) ? data.history : [];
+
+    if (!items.length) {
+      if (summary) summary.innerHTML = "";
+      list.innerHTML = '<div class="day-card"><strong>No saved sessions yet.</strong><p>Finish a form-check session to see it here.</p></div>';
+      return;
+    }
+
+    const sessions = items.filter(x => x.kind === "form_session");
+    const totalReps = sessions.reduce((n,x) => n + Number(x.reps || 0), 0);
+    const avgScore = sessions.length
+      ? Math.round(sessions.reduce((n,x) => n + Number(x.score || 0), 0) / sessions.length)
+      : 0;
+
+    if (summary) {
+      summary.innerHTML = `
+        <div class="history-stat"><span>SESSIONS</span><strong>${sessions.length}</strong></div>
+        <div class="history-stat"><span>TOTAL REPS</span><strong>${totalReps}</strong></div>
+        <div class="history-stat"><span>AVG SCORE</span><strong>${avgScore}%</strong></div>
+      `;
+    }
+
+    list.innerHTML = items.map(item => {
+      const date = item.created_at
+        ? new Date(item.created_at).toLocaleString()
+        : "Saved session";
+      const title = escapeHtml(item.exercise_name || item.exercise_id || "Workout");
+      const kind = item.kind === "workout_plan" ? "WORKOUT PLAN" : "FORM SESSION";
+      return `
+        <article class="day-card history-session-card">
+          <div>
+            <span class="eyebrow">${kind}</span>
+            <strong>${title}</strong>
+            <p>${escapeHtml(date)} • ${Number(item.duration_seconds || 0)} sec • ${Number(item.calories || 0)} kcal</p>
+          </div>
+          <div class="history-session-metrics">
+            <span><b>${Number(item.reps || 0)}</b> reps</span>
+            <span><b>${Math.round(Number(item.score || 0))}%</b> score</span>
+          </div>
+        </article>
+      `;
+    }).join("");
+
+  } catch (error) {
+    console.error("FORMFIT history:", error);
+    list.innerHTML = '<div class="day-card"><strong>Could not load history.</strong><p>Please make sure the main FormFit server is running.</p></div>';
+  }
+}
+
+function startFormClock() {
+  if (formClockTimer) clearInterval(formClockTimer);
+  formStartTime = performance.now();
+  formClockTimer = setInterval(() => {
+    const el = $("#timeValue");
+    if (!el || !formStartTime) return;
+    const sec = Math.floor((performance.now() - formStartTime) / 1000);
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(sec % 60).padStart(2, "0");
+    el.textContent = `${mm}:${ss}`;
+    const cal = $("#caloriesValue");
+    if (cal) cal.textContent = Math.max(0, Math.round(sec * 0.08));
+  }, 1000);
+}
+
+async function enableCamera() {
+  try {
+    setCoachStatus('STARTING AI CAMERA…', 'var(--yellow)');
+
+    const poseLoaded = await setupBrowserPose();
+    if (!poseLoaded) {
+      throw new Error('Browser MediaPipe failed to load');
+    }
+
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30, max: 30 }
+      },
+      audio: false
+    });
+
+    const video = $('#cameraVideo');
+    video.srcObject = cameraStream;
+    video.style.display = 'block';
+    video.style.transform = 'scaleX(-1)';
+    await video.play();
+
+    ensureOverlay();
+    resizeOverlay();
+
+    $('#cameraArea .camera-icon').style.display = 'none';
+    $('#cameraArea h3').style.display = 'none';
+    $('#cameraArea p').style.display = 'none';
+    $('#cameraBtn').style.display = 'none';
+
+    setCoachStatus('AI FORM CHECK RUNNING', 'var(--accent)');
+    startFormClock();
+    startPoseLoop();
+  } catch (error) {
+    console.error(error);
+    setCoachStatus('CAMERA / MEDIAPIPE FAILED', 'var(--red)');
+    alert('Camera or browser AI could not start. Check camera permission and internet connection.');
+  }
+}
+
+function bindFormChoices() {
+  $$(".choice[data-field='goal']")
+    .forEach(btn => {
+      btn.onclick = () => {
+        state.goal =
+          btn.dataset.value;
+
+        $$(".choice[data-field='goal']")
+          .forEach(
+            b =>
+              b.classList.remove(
+                "selected"
+              )
+          );
+
+        btn.classList.add(
+          "selected"
+        );
+      };
+    });
+
+  $$("#equipmentChoices .choice")
+    .forEach(btn => {
+      btn.onclick = () => {
+        const value =
+          btn.dataset.value;
+
+        if (
+          state.equipment
+            .includes(value)
+        ) {
+          if (
+            state.equipment.length > 1
+          ) {
+            state.equipment =
+              state.equipment.filter(
+                x => x !== value
+              );
+
+            btn.classList.remove(
+              "selected"
+            );
+          }
+        } else {
+          state.equipment.push(
+            value
+          );
+
+          btn.classList.add(
+            "selected"
+          );
+        }
+      };
+    });
+
+  $("#recommendForm")
+    .addEventListener(
+      "submit",
+      generatePlan
+    );
+}
+
+async function generatePlan(event) {
+  event.preventDefault();
+
+  const profile = {
+    goal: state.goal,
+    experience:
+      $("#experience").value,
+    days_per_week:
+      Number($("#days").value),
+    exercises_per_day:
+      Number($("#perDay").value),
+    equipment:
+      state.equipment,
+    target_muscles: []
+  };
+
+  const result =
+    $("#planResult");
+
+  result.innerHTML =
+    `<div class="day-card">
+      <strong>Building your plan…</strong>
+      <p style="color:var(--muted)">
+        Scoring exercises from the library.
+      </p>
+    </div>`;
+
+  const res =
+    await fetch(
+      "/api/recommend",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+        body:
+          JSON.stringify(profile)
+      }
+    );
+
+  const data =
+    await res.json();
+
+  if (!res.ok) {
+    result.innerHTML =
+      `<div class="day-card">
+        <strong>
+          Could not build plan.
+        </strong>
+        <p>
+          ${escapeHtml(
+            data.error ||
+            "Unknown error"
+          )}
+        </p>
+      </div>`;
+
+    return;
+  }
+
+  result.innerHTML =
+    (data.days || [])
+      .map(day => `
+        <div class="day-card">
+          <h3>
+            Day ${day.day} —
+            ${escapeHtml(day.name)}
+          </h3>
+
+          <small style="color:var(--muted)">
+            5 min warm-up
+          </small>
+
+          ${(day.exercises || [])
+            .map(ex => `
+              <div class="plan-ex">
+                <div>
+                  <strong>
+                    ${ex.order}.
+                    ${escapeHtml(
+                      ex.exercise
+                    )}
+                  </strong>
+
+                  <small>
+                    ${escapeHtml(
+                      ex.primary_muscles
+                        .join(" • ")
+                    )}
+                    • ${ex.sets} × ${ex.reps}
+                    • ${ex.rest_seconds}s rest
+                  </small>
+                </div>
+
+                <span class="badge">
+                  ${escapeHtml(
+                    ex.form_check_status
+                  )}
+                </span>
+              </div>
+            `)
+            .join("")}
+        </div>
+      `)
+      .join("");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
+    bindNavigation();
+  bindMealPlan();
+    bindFormChoices();
+
+    $("#searchInput")
+      .addEventListener(
+        "input",
+        renderExercises
+      );
+
+    $("#categoryFilter")
+      .addEventListener(
+        "change",
+        renderExercises
+      );
+
+    $("#cameraBtn").onclick =
+      enableCamera;
+
+    $("#backLibrary").onclick =
+      () => showView("library");
+
+    window.addEventListener(
+      "resize",
+      resizeOverlay
+    );
+
+    // Start the independent 60-ish FPS
+    // visual renderer once.
+    requestAnimationFrame(
+      renderSmoothOverlay
+    );
+
+    await loadExercises();
+  }
+);
