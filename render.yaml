@@ -13,6 +13,8 @@ services:
           type: web
           name: formfit-ai
           property: hostport
+      - key: FORMFIT_POSE_API_FALLBACK_URL
+        value: "https://formfit-ai.onrender.com"
       - key: FORMFIT_PRODUCTION
         value: "true"
       - key: FORMFIT_SECRET_KEY
