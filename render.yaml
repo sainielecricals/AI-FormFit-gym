@@ -9,7 +9,10 @@ services:
     healthCheckPath: /health
     envVars:
       - key: FORMFIT_POSE_API_URL
-        sync: false
+        fromService:
+          type: web
+          name: formfit-ai
+          property: hostport
       - key: FORMFIT_PRODUCTION
         value: "true"
       - key: FORMFIT_SECRET_KEY

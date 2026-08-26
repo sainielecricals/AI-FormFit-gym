@@ -35,6 +35,14 @@ app.config.update(
 )
 
 DB_PATH = BASE / "formfit_users.db"
+
+POSE_API_BASE = os.environ.get(
+    "FORMFIT_POSE_API_URL",
+    "http://127.0.0.1:5050",
+).strip().rstrip("/")
+
+if POSE_API_BASE and not POSE_API_BASE.startswith(("http://", "https://")):
+    POSE_API_BASE = "http://" + POSE_API_BASE
 EXERCISES = load_exercises()
 
 
@@ -317,7 +325,7 @@ def proxy_analyze_landmarks():
 
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{os.environ.get("FORMFIT_POSE_API_URL", "http://127.0.0.1:5050").rstrip("/")}/api/analyze_landmarks",
+        f"{POSE_API_BASE}/api/analyze_landmarks",
         data=body,
         headers={
             "Content-Type": "application/json",
@@ -352,7 +360,7 @@ def proxy_analyze_landmarks():
 def form_engine_health():
     """Non-blocking health bridge used by the UI."""
     req = urllib.request.Request(
-        f"{os.environ.get("FORMFIT_POSE_API_URL", "http://127.0.0.1:5050").rstrip("/")}/api/health",
+        f"{POSE_API_BASE}/api/health",
         method="GET",
         headers={"Accept": "application/json"},
     )
