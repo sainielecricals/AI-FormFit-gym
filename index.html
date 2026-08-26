@@ -237,23 +237,34 @@
               </div>
 
               <div class="metric-card">
-                <span>KNEE ANGLE</span>
-                <strong id="metricKnee">—</strong>
-                <em id="kneeState">CHECK</em>
-              </div>
-
-              <div class="metric-card">
                 <span>BACK ANGLE</span>
                 <strong id="metricBack">—</strong>
                 <em id="backState">CHECK</em>
               </div>
 
-              <div class="guide-card">
-                <span>GUIDE</span>
-                <b>Follow the correction</b>
-                <p id="guideTextVisible">Keep your full body visible and follow the yellow dotted guide.</p>
-                <div class="guide-mini">
-                  <span class="guide-bad">×</span><span class="guide-arrow">→</span><span class="guide-good">✓</span>
+              <div class="premapped-demo-card" id="premappedDemoCard">
+                <div class="premapped-demo-head">
+                  <div>
+                    <span>REFERENCE DEMO</span>
+                    <strong id="premappedDemoTitle">Exercise Demo</strong>
+                  </div>
+                  <span class="premapped-demo-badge">READY</span>
+                </div>
+
+                <div class="premapped-demo-frame" id="premappedDemoFrame">
+                  <iframe
+                    id="premappedDemoFrameVideo"
+                    class="premapped-demo-iframe"
+                    title="Exercise reference demonstration"
+                    loading="eager"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowfullscreen
+                    referrerpolicy="strict-origin-when-cross-origin"
+                  ></iframe>
+                </div>
+
+                <div class="premapped-demo-meta">
+                  <span id="premappedDemoSource">Reference demonstration</span>
                 </div>
               </div>
             </aside>

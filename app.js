@@ -37,10 +37,85 @@ const visual = {
 let formClockTimer = null;
 let formStartTime = 0;
 
+// FORM-GATED REP DISPLAY:
+// The backend can report movement reps, but the UI only accepts a new rep
+// when the current form decision is GREEN. This keeps the existing rep
+// engine untouched and gates only the accepted/displayed count.
+let acceptedReps = 0;
+let lastRawReps = 0;
+
 const state = {
   goal: "muscle gain",
   equipment: ["Bodyweight"]
 };
+
+// PRE-MAPPED REFERENCE DEMOS — UI ONLY.
+// No runtime search or API lookup. Existing tracking/model logic is untouched.
+const PREMAPPED_DEMOS = {
+  "squat": { id: "OOsb9DNs8dI", source: "Squat reference" },
+  "bicep_curls": { id: "pQfJR-sSIvA", source: "Bicep Curl reference" },
+  "shoulder_press": { id: "fRPzHslb9XU", source: "University of Arkansas • Shoulder Press" },
+  "lateral_shoulder_raises": { id: "c7zMmbWkUPw", source: "Lateral Raise reference" },
+  "tricep_extension": { id: "_gsUck-7M74", source: "Tricep Extension reference" },
+  "lunges": { id: "QF0BQS2W80k", source: "Lunge reference" },
+  "push_up": { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  "dumbbell_row": { id: "roCP6wCXPqo", source: "Dumbbell Row reference" },
+  "sit_up": { id: "1fbU_MkV7NE", source: "Sit-Up reference" },
+  "jumping_jack": { id: "uLVt6u15L98", source: "Jumping Jack reference" },
+  "bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
+  "deadlift": { id: "Z6gcRfPNcZo", source: "NASM • Deadlift" },
+  "front_raise": { id: "c7zMmbWkUPw", source: "Shoulder raise reference" },
+  "hammer_curl": { id: "TwD-YGVP4Bk", source: "Howcast • Hammer Curl" },
+  "calf_raise": { id: "1lKjFPrYqf0", source: "BarBend • Calf Raise" },
+  "glute_bridge": { id: "sh63qy5EV_8", source: "BarBend • Glute Bridge" },
+  "plank": { id: "mwlp75MS6Rg", source: "NASM • Plank" },
+  "mountain_climber": { id: "kLh-uczlPLg", source: "PureGym • Mountain Climber" },
+  "burpee": { id: "mUYJqe_sJFE", source: "Minus The Gym • Burpee" },
+  "step_up": { id: "URHdW9js6DM", source: "NASM • Step Up" },
+  "reverse_lunge": { id: "lKhZvT_NkOs", source: "NASM • Reverse Lunge" },
+  "chest_fly": { id: "mLgYNdxj-Vw", source: "Jeremy Ethier • Chest Fly" },
+  "incline_dumbbell_press": { id: "WLTU1j7Ur8M", source: "BarBend • Dumbbell Bench Press" },
+  "decline_bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
+  "incline_bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
+  "dumbbell_bench_press": { id: "WLTU1j7Ur8M", source: "BarBend • Dumbbell Bench Press" },
+  "close_grip_bench_press": { id: "Zfi0cIJi6c", source: "BarBend • Close-Grip Incline Press" },
+  "push_up_wide_grip": { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  "push_up_diamond": { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  "incline_push_up": { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  "decline_push_up": { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  "chest_press_machine": { id: "2y6ntGVg4dw", source: "BarBend • Chest Press Machine" },
+  "cable_crossover": { id: "8Um35Es-ROE", source: "BarBend • Cable Fly" },
+  "low_cable_crossover": { id: "8Um35Es-ROE", source: "BarBend • Cable Fly" },
+};
+
+function setPremappedDemo(exercise) {
+  const iframe = $("#premappedDemoFrameVideo");
+  const title = $("#premappedDemoTitle");
+  const source = $("#premappedDemoSource");
+
+  if (!iframe || !title || !source) return;
+
+  const ref = PREMAPPED_DEMOS[exercise?.id];
+
+  iframe.src = "about:blank";
+
+  title.textContent = exercise?.name
+    ? `${exercise.name} Demo`
+    : "Exercise Demo";
+
+  if (!ref) {
+    source.textContent = "Reference demonstration not mapped yet.";
+    return;
+  }
+
+  iframe.src =
+    `https://www.youtube-nocookie.com/embed/${ref.id}` +
+    `?autoplay=1&mute=1&controls=1&rel=0&playsinline=1`;
+
+  source.textContent = ref.source;
+}
+
+
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -560,6 +635,8 @@ function resetVisualState() {
   visual.targets = [];
   visual.score = 0;
   visual.reps = 0;
+  acceptedReps = 0;
+  lastRawReps = 0;
   visual.status = "yellow";
   visual.message = "";
   visual.lastView = "";
@@ -575,6 +652,7 @@ async function selectExercise(id) {
 
   currentExercise = ex;
   resetVisualState();
+  setPremappedDemo(ex);
 
   $("#selectedExerciseTitle")
     .textContent = ex.name;
@@ -596,7 +674,7 @@ async function selectExercise(id) {
 
   try {
     const response = await fetch(
-      "http://127.0.0.1:5050/api/session",
+      "/api/session",
       {
         method: "POST",
         headers: {
@@ -609,7 +687,12 @@ async function selectExercise(id) {
     );
 
     if (!response.ok) {
-      throw new Error("Pose API unavailable");
+      let detail = "Pose API unavailable";
+      try {
+        const data = await response.json();
+        if (data?.error) detail = data.error;
+      } catch (_) {}
+      throw new Error(detail);
     }
 
     setCoachStatus(
@@ -617,14 +700,28 @@ async function selectExercise(id) {
       "var(--accent)"
     );
 
-  } catch {
+  } catch (error) {
     setCoachStatus(
-      "START POSE API FIRST",
+      `AI FORM CHECK ERROR — ${error?.message || "request failed"}`,
       "var(--red)"
     );
   }
 
   showView("form");
+}
+
+
+async function checkFormEngineHealth() {
+  try {
+    const response = await fetch("/api/form-engine-health", {
+      method: "GET",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("health");
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 function setCoachStatus(text, color) {
@@ -722,16 +819,20 @@ function smoothNumber(oldValue, newValue, factor) {
 }
 
 function smoothPoint(oldPoint, newPoint, factor) {
-  if (!oldPoint) return {x: newPoint.x, y: newPoint.y};
+  if (!oldPoint) return { x: newPoint.x, y: newPoint.y };
 
   const dx = newPoint.x - oldPoint.x;
   const dy = newPoint.y - oldPoint.y;
   const distance = Math.hypot(dx, dy);
+
+  // Responsive on fast movement, more stable on small landmark jitter.
+  // These values only affect rendering; they do not change pose decisions.
   const adaptive = distance > 0.055
-    ? 0.985
+    ? 0.92
     : distance > 0.025
-      ? 0.95
-      : 0.86;
+      ? 0.86
+      : 0.78;
+
   const k = Math.max(factor, adaptive);
 
   return {
@@ -755,7 +856,7 @@ function pipeSegmentDistance(a, b, x, y) {
 function smoothPipes(newPipes) {
   // Match segments by their geometry, never by array index. If a low-
   // confidence joint disappears, the remaining pipe order can change.
-  const factor = 0.92;
+  const factor = 0.78;
   const oldPipes = visual.pipes || [];
   const used = new Set();
   const result = [];
@@ -793,7 +894,7 @@ function smoothPipes(newPipes) {
 
 function smoothTargets(newTargets) {
   // Yellow target should follow corrections quickly.
-  const factor = 0.94;
+  const factor = 0.80;
 
   if (!visual.targets.length) {
     visual.targets =
@@ -845,8 +946,22 @@ function drawPoseResult(data) {
   smoothTargets(data.targets || []);
 
   visual.score = data.score ?? visual.score;
-  visual.reps = data.reps ?? visual.reps;
-  visual.status = data.status || visual.status;
+
+  const rawReps = Number(data.reps ?? lastRawReps);
+  const currentStatus = data.status || visual.status || "yellow";
+
+  // Only accept NEW reps when the evaluated form is green.
+  if (rawReps > lastRawReps) {
+    if (currentStatus === "green") {
+      acceptedReps += (rawReps - lastRawReps);
+    }
+    // When form is not green, the newly reported backend reps are intentionally
+    // not added to acceptedReps.
+  }
+
+  lastRawReps = Math.max(lastRawReps, rawReps);
+  visual.reps = acceptedReps;
+  visual.status = currentStatus;
   visual.message = data.message || "";
   visual.lastView = data.view || visual.lastView || "";
 
@@ -860,133 +975,197 @@ function renderSmoothOverlay() {
   const canvas = ensureOverlay();
 
   if (!canvas) {
-    requestAnimationFrame(
-      renderSmoothOverlay
-    );
+    requestAnimationFrame(renderSmoothOverlay);
     return;
   }
 
   resizeOverlay();
-
   const ctx = canvas.getContext("2d");
-
-  ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // ----------------------------------------------------------
-  // SMOOTH GREEN / RED / YELLOW PIPES
+  // PROFESSIONAL FORM PIPES — VISUAL ONLY
+  // Same visual endpoints, same status logic, same data.
+  // Only the canvas styling is refined here.
   // ----------------------------------------------------------
+  const joints = [];
+
+  const styleFor = (status) => {
+    if (status === "green") {
+      return {
+        core: "#2AF58B",
+        highlight: "#B9FFD8",
+        glow: "rgba(42,245,139,0.38)"
+      };
+    }
+    if (status === "yellow") {
+      return {
+        core: "#FFD86A",
+        highlight: "#FFF1B0",
+        glow: "rgba(255,216,106,0.34)"
+      };
+    }
+    return {
+      core: "#FF536A",
+      highlight: "#FFC2CB",
+      glow: "rgba(255,83,106,0.34)"
+    };
+  };
+
   for (const pipe of visual.pipes) {
-    const a =
-      pointToCanvas(pipe.a, canvas);
+    const a = pointToCanvas(pipe.a, canvas);
+    const b = pointToCanvas(pipe.b, canvas);
+    const style = styleFor(pipe.status);
 
-    const b =
-      pointToCanvas(pipe.b, canvas);
+    joints.push({ p: a, style }, { p: b, style });
 
-    const color =
-      pipe.status === "green"
-        ? "#20e070"
-        : pipe.status === "yellow"
-          ? "#f4d35e"
-          : "#ff4d5d";
-
+    // Soft outer glow — polished, but intentionally subtle.
+    ctx.save();
     ctx.beginPath();
-
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = style.glow;
+    ctx.lineWidth = 10;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-
-    ctx.shadowBlur = 7;
-    ctx.shadowColor = color;
-
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = style.glow;
     ctx.stroke();
+    ctx.restore();
 
-    ctx.shadowBlur = 0;
+    // Dark separation ring makes the pipe read clearly on any clothing/background.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = "rgba(2, 10, 14, 0.86)";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.restore();
+
+    // Main pipe.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = style.core;
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.restore();
+
+    // Small highlight line gives a cleaner "designed" look without changing geometry.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = style.highlight;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.globalAlpha = 0.72;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // ----------------------------------------------------------
-  // YELLOW DOTTED CORRECTION GUIDE
+  // JOINTS — CONSISTENT PRO NODE DESIGN
   // ----------------------------------------------------------
-  for (const target of visual.targets) {
-    const actual =
-      pointToCanvas(
-        target.actual,
-        canvas
-      );
+  const seen = new Set();
 
-    const desired =
-      pointToCanvas(
-        target.desired,
-        canvas
-      );
+  for (const joint of joints) {
+    const key =
+      `${Math.round(joint.p.x / 3)}:${Math.round(joint.p.y / 3)}:${joint.style.core}`;
 
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // Outer dark halo
     ctx.beginPath();
-
-    ctx.setLineDash([
-      6,
-      8
-    ]);
-
-    ctx.moveTo(
-      actual.x,
-      actual.y
-    );
-
-    ctx.lineTo(
-      desired.x,
-      desired.y
-    );
-
-    ctx.strokeStyle =
-      "#f4d35e";
-
-    ctx.lineWidth = 2.5;
-
-    ctx.stroke();
-
-    ctx.setLineDash([]);
-
-    ctx.beginPath();
-
-    ctx.arc(
-      desired.x,
-      desired.y,
-      7,
-      0,
-      Math.PI * 2
-    );
-
-    ctx.fillStyle =
-      "#f4d35e";
-
+    ctx.arc(joint.p.x, joint.p.y, 8.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(2,10,14,0.88)";
     ctx.fill();
 
-    ctx.font =
-      "bold 13px Inter";
+    // Status-colored node
+    ctx.beginPath();
+    ctx.arc(joint.p.x, joint.p.y, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = joint.style.core;
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = joint.style.glow;
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-    ctx.fillStyle =
-      "#f4d35e";
-
-    ctx.fillText(
-      target.label,
-      desired.x + 11,
-      desired.y - 8
-    );
+    // Tiny center highlight
+    ctx.beginPath();
+    ctx.arc(joint.p.x - 1.2, joint.p.y - 1.2, 1.25, 0, Math.PI * 2);
+    ctx.fillStyle = joint.style.highlight;
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
-  requestAnimationFrame(
-    renderSmoothOverlay
-  );
-}
+  // ----------------------------------------------------------
+  // YELLOW DOTTED CORRECTION GUIDE — VISUAL ONLY
+  // ----------------------------------------------------------
+  for (const target of visual.targets) {
+    const actual = pointToCanvas(target.actual, canvas);
+    const desired = pointToCanvas(target.desired, canvas);
 
+    // Soft yellow route glow
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([7, 8]);
+    ctx.moveTo(actual.x, actual.y);
+    ctx.lineTo(desired.x, desired.y);
+    ctx.strokeStyle = "rgba(255,216,106,0.28)";
+    ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = "rgba(255,216,106,0.32)";
+    ctx.stroke();
+    ctx.restore();
+
+    // Main dotted guide
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([7, 8]);
+    ctx.moveTo(actual.x, actual.y);
+    ctx.lineTo(desired.x, desired.y);
+    ctx.strokeStyle = "#FFD86A";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+
+    // Target ring + center
+    ctx.beginPath();
+    ctx.arc(desired.x, desired.y, 8.5, 0, Math.PI * 2);
+    ctx.strokeStyle = "#FFF1B0";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(desired.x, desired.y, 4.8, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFD86A";
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = "rgba(255,216,106,0.42)";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (target.label) {
+      // Label only — no logic change.
+      ctx.font = "700 13px Inter, system-ui, sans-serif";
+      ctx.fillStyle = "#FFF1B0";
+      ctx.shadowBlur = 0;
+      ctx.fillText(target.label, desired.x + 13, desired.y - 10);
+    }
+  }
+
+  requestAnimationFrame(renderSmoothOverlay);
+}
 function updateFormUI(data) {
   const statusText =
     data.status === "green" ? "✓ CORRECT FORM" :
@@ -1167,7 +1346,7 @@ async function sendLandmarksToAPI(landmarks, width, height) {
 
   try {
     const response = await fetch(
-      'http://127.0.0.1:5050/api/analyze_landmarks',
+      '/api/analyze_landmarks',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1196,7 +1375,13 @@ async function sendLandmarksToAPI(landmarks, width, height) {
     }
   } catch (error) {
     console.error('FORMFIT landmark API:', error);
-    setCoachStatus('FORM ENGINE NOT RUNNING', 'var(--red)');
+
+    const message =
+      error?.message === 'Failed to fetch'
+        ? 'AI FORM ENGINE OFFLINE — keep formfit_api.py running'
+        : `AI FORM CHECK ERROR — ${error?.message || 'request failed'}`;
+
+    setCoachStatus(message, 'var(--red)');
   } finally {
     browserPoseBusy = false;
   }
@@ -1613,18 +1798,22 @@ async function generatePlan(event) {
 
           ${(day.exercises || [])
             .map(ex => `
-              <div class="plan-ex">
+              <div
+                class="plan-ex"
+                data-plan-exercise="${escapeHtml(ex.exercise_id || "")}"
+                role="button"
+                tabindex="0"
+                title="Open this exercise"
+              >
                 <div>
                   <strong>
                     ${ex.order}.
-                    ${escapeHtml(
-                      ex.exercise
-                    )}
+                    ${escapeHtml(ex.exercise)}
                   </strong>
 
                   <small>
                     ${escapeHtml(
-                      ex.primary_muscles
+                      (ex.primary_muscles || [])
                         .join(" • ")
                     )}
                     • ${ex.sets} × ${ex.reps}
@@ -1634,7 +1823,7 @@ async function generatePlan(event) {
 
                 <span class="badge">
                   ${escapeHtml(
-                    ex.form_check_status
+                    ex.form_check_status || "LIBRARY"
                   )}
                 </span>
               </div>
@@ -1643,6 +1832,24 @@ async function generatePlan(event) {
         </div>
       `)
       .join("");
+
+  // Click/open behavior only: reuse the existing Form Checker selection.
+  result.querySelectorAll("[data-plan-exercise]").forEach(item => {
+    const openExercise = async () => {
+      const exerciseId = item.dataset.planExercise;
+      if (!exerciseId || typeof selectExercise !== "function") return;
+      await selectExercise(exerciseId);
+    };
+
+    item.addEventListener("click", openExercise);
+
+    item.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openExercise();
+      }
+    });
+  });
 }
 
 function escapeHtml(value) {

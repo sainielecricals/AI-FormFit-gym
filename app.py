@@ -7,6 +7,8 @@ import os
 import secrets
 import sqlite3
 import sys
+import urllib.error
+import urllib.request
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -28,7 +30,7 @@ app.secret_key = os.environ.get("FORMFIT_SECRET_KEY", SECRET_KEY)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,  # local HTTP development server
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")) or os.environ.get("FORMFIT_PRODUCTION", "").lower() == "true",
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
 )
 
@@ -301,6 +303,68 @@ def delete_history(history_id):
     return jsonify({"ok": True})
 
 
+@app.post("/api/analyze_landmarks")
+def proxy_analyze_landmarks():
+    """Same-origin bridge to the local AI pose service.
+
+    The browser talks only to the web app (port 5000). The web server forwards
+    the JSON payload to the existing pose API (port 5050). This removes browser
+    CORS/localhost mismatch issues without changing the pose engine itself.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid pose payload"}), 400
+
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{os.environ.get("FORMFIT_POSE_API_URL", "http://127.0.0.1:5050").rstrip("/")}/api/analyze_landmarks",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            raw = resp.read().decode("utf-8")
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                data = {"error": "Invalid AI engine response"}
+            return jsonify(data), resp.status
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read().decode("utf-8")
+            data = json.loads(raw)
+        except Exception:
+            data = {"error": f"AI engine returned HTTP {exc.code}"}
+        return jsonify(data), exc.code
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return jsonify({
+            "error": "AI pose engine is offline",
+            "hint": "Keep formfit_api.py running on port 5050."
+        }), 503
+
+
+@app.get("/api/form-engine-health")
+def form_engine_health():
+    """Non-blocking health bridge used by the UI."""
+    req = urllib.request.Request(
+        f"{os.environ.get("FORMFIT_POSE_API_URL", "http://127.0.0.1:5050").rstrip("/")}/api/health",
+        method="GET",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            return jsonify(data), resp.status
+    except Exception:
+        return jsonify({"status": "offline"}), 503
+
+
 @app.get("/health")
 def health():
     return jsonify({
@@ -318,4 +382,4 @@ if __name__ == "__main__":
     print("FORMFIT AI web server")
     print("Open: http://127.0.0.1:5000")
     print("User database:", DB_PATH)
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)

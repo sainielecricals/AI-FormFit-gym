@@ -17,6 +17,7 @@ from flask_cors import CORS
 import cv2
 import numpy as np
 import threading
+import os
 import time
 import mediapipe as mp
 
@@ -349,13 +350,13 @@ if __name__ == "__main__":
     print("=" * 60)
     print("AI GYM FORMFIT - LIVE FORM API V6")
     print("FAST MODE + SIDE-VIEW REP COUNT FIX")
-    print("API: http://127.0.0.1:5050")
+    print(f"API: http://0.0.0.0:{os.environ.get("PORT", "5050")}")
     print("=" * 60)
 
     # Debug OFF: no reloader, no duplicate server process.
     app.run(
-        host="127.0.0.1",
-        port=5050,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "5050")),
         debug=False,
         threaded=True,
         use_reloader=False,

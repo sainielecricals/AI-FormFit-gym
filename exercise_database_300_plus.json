@@ -512,7 +512,7 @@
         "check_wrists": true,
         "check_symmetry": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "deadlift": {
       "name": "Deadlift",
@@ -556,7 +556,7 @@
         "check_hip_hinge": true,
         "check_bar_path": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "front_raise": {
       "name": "Front Raise",
@@ -597,7 +597,7 @@
         "check_torso": true,
         "check_raise_height": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "hammer_curl": {
       "name": "Hammer Curl",
@@ -639,7 +639,7 @@
         "check_back": true,
         "check_rep_phase": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "calf_raise": {
       "name": "Calf Raise",
@@ -681,7 +681,7 @@
         "check_balance": true,
         "check_rep_phase": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "glute_bridge": {
       "name": "Glute Bridge",
@@ -722,7 +722,7 @@
         "check_back": true,
         "check_symmetry": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "plank": {
       "name": "Plank",
@@ -762,7 +762,7 @@
         "check_hips": true,
         "check_neck": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "mountain_climber": {
       "name": "Mountain Climber",
@@ -804,7 +804,7 @@
         "check_hips": true,
         "check_movement": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "burpee": {
       "name": "Burpee",
@@ -847,7 +847,7 @@
         "check_landing": true,
         "check_phase": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "step_up": {
       "name": "Step-Up",
@@ -891,7 +891,7 @@
         "check_balance": true,
         "check_rep_phase": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "reverse_lunge": {
       "name": "Reverse Lunge",
@@ -934,7 +934,7 @@
         "check_back": true,
         "check_balance": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "chest_fly": {
       "name": "Chest Fly",
@@ -976,7 +976,7 @@
         "check_elbows": true,
         "check_rep_phase": true
       },
-      "form_check_status": "BASIC"
+      "form_check_status": "READY"
     },
     "incline_dumbbell_press": {
       "name": "Incline Dumbbell Press",
@@ -1017,7 +1017,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "decline_bench_press": {
       "name": "Decline Bench Press",
@@ -1058,7 +1058,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "incline_bench_press": {
       "name": "Incline Bench Press",
@@ -1099,7 +1099,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "dumbbell_bench_press": {
       "name": "Dumbbell Bench Press",
@@ -1140,7 +1140,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "close_grip_bench_press": {
       "name": "Close Grip Bench Press",
@@ -1181,7 +1181,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "push_up_wide_grip": {
       "name": "Push-Up Wide Grip",
@@ -1221,7 +1221,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "push_up_diamond": {
       "name": "Push-Up Diamond",
@@ -1261,7 +1261,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "incline_push_up": {
       "name": "Incline Push-Up",
@@ -1302,7 +1302,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "decline_push_up": {
       "name": "Decline Push-Up",
@@ -1343,7 +1343,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "chest_press_machine": {
       "name": "Chest Press Machine",
@@ -1383,7 +1383,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "cable_crossover": {
       "name": "Cable Crossover",
@@ -1422,7 +1422,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "low_cable_crossover": {
       "name": "Low Cable Crossover",
@@ -1461,7 +1461,7 @@
         "check_alignment": true,
         "check_rep_phase": true
       },
-      "form_check_status": "COMING_SOON"
+      "form_check_status": "READY"
     },
     "high_cable_crossover": {
       "name": "High Cable Crossover",

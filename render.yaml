@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: formfit-web
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /health
+    envVars:
+      - key: FORMFIT_POSE_API_URL
+        sync: false
+      - key: FORMFIT_PRODUCTION
+        value: "true"
+      - key: FORMFIT_SECRET_KEY
+        generateValue: true
+
+  - type: web
+    name: formfit-ai
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements_pose_api.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT formfit_api:app
+    healthCheckPath: /api/health

@@ -95,6 +95,30 @@ EXERCISES = {
     "dumbbell_row": "DUMBBELL ROW",
     "sit_up": "SIT UP",
     "jumping_jack": "JUMPING JACK",
+    "bench_press": "BENCH PRESS",
+    "deadlift": "DEADLIFT",
+    "front_raise": "FRONT RAISE",
+    "hammer_curl": "HAMMER CURL",
+    "calf_raise": "CALF RAISE",
+    "glute_bridge": "GLUTE BRIDGE",
+    "plank": "PLANK",
+    "mountain_climber": "MOUNTAIN CLIMBER",
+    "burpee": "BURPEE",
+    "step_up": "STEP-UP",
+    "reverse_lunge": "REVERSE LUNGE",
+    "chest_fly": "CHEST FLY",
+    "incline_dumbbell_press": "INCLINE DUMBBELL PRESS",
+    "decline_bench_press": "DECLINE BENCH PRESS",
+    "incline_bench_press": "INCLINE BENCH PRESS",
+    "dumbbell_bench_press": "DUMBBELL BENCH PRESS",
+    "close_grip_bench_press": "CLOSE GRIP BENCH PRESS",
+    "push_up_wide_grip": "WIDE GRIP PUSH-UP",
+    "push_up_diamond": "DIAMOND PUSH-UP",
+    "incline_push_up": "INCLINE PUSH-UP",
+    "decline_push_up": "DECLINE PUSH-UP",
+    "chest_press_machine": "CHEST PRESS MACHINE",
+    "cable_crossover": "CABLE CROSSOVER",
+    "low_cable_crossover": "LOW CABLE CROSSOVER",
 }
 
 ALIASES = {
@@ -1595,6 +1619,501 @@ def choose_side(landmarks):
 
 
 # ============================================================
+# EXPANDED EXERCISE RULES — BATCH 1
+# ============================================================
+#
+# These rules are added as separate exercise-specific branches.
+# Existing 10 exercises remain untouched.
+# ============================================================
+
+def _side_triplet_visible(landmarks, ids):
+    return all(visible(landmarks, i) for i in ids)
+
+
+def _best_side_triplet(landmarks, triplets):
+    best = None
+    score_best = -1.0
+    for triplet in triplets:
+        score = sum(float(landmarks[i].visibility) for i in triplet)
+        if score > score_best:
+            score_best = score
+            best = triplet
+    return best
+
+
+def analyze_bench_press(landmarks, width, height):
+    ids = [
+        (LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST),
+        (RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST),
+    ]
+    if not all(_side_triplet_visible(landmarks, x) for x in ids):
+        return FormResult("red", "SHOW BOTH ARMS CLEARLY", 0, view="FRONT")
+
+    values = []
+    pipes = []
+    bad_sym = False
+    for (sid, eid, wid) in ids:
+        s = xy(landmarks, sid, width, height)
+        e = xy(landmarks, eid, width, height)
+        w = xy(landmarks, wid, width, height)
+        a = angle(s, e, w)
+        values.append(a)
+        pipes.extend([(s, e, "green"), (e, w, "green")])
+
+    bad_sym = abs(values[0] - values[1]) > 18
+    good_range = all(70 <= v <= 160 for v in values)
+
+    if bad_sym:
+        return FormResult(
+            "red", "PRESS BOTH ARMS EVENLY", 55,
+            {"elbow": sum(values)/2}, pipes, [], "FRONT", False
+        )
+    if not good_range:
+        return FormResult(
+            "yellow", "CONTROL THE PRESS RANGE", 78,
+            {"elbow": sum(values)/2}, pipes, [], "FRONT", False
+        )
+    return FormResult(
+        "green", "BENCH PRESS FORM GOOD", 96,
+        {"elbow": sum(values)/2}, pipes, [], "FRONT", True
+    )
+
+
+def analyze_deadlift(landmarks, width, height):
+    side = choose_side(landmarks)
+    if side == "LEFT":
+        hid, kid, aid, sid = LEFT_HIP, LEFT_KNEE, LEFT_ANKLE, LEFT_SHOULDER
+    else:
+        hid, kid, aid, sid = RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE, RIGHT_SHOULDER
+
+    if not all(visible(landmarks, i) for i in (hid, kid, aid, sid)):
+        return FormResult("red", "SHOW FULL BODY FROM SIDE", 0, view="SIDE")
+
+    h = xy(landmarks, hid, width, height)
+    k = xy(landmarks, kid, width, height)
+    a = xy(landmarks, aid, width, height)
+    s = xy(landmarks, sid, width, height)
+
+    knee = angle(h, k, a)
+    back = vertical_angle(s, h)
+
+    pipes=[(s,h,"green"),(h,k,"green"),(k,a,"green")]
+    targets=[]
+
+    if back > 48:
+        pipes[0]=(s,h,"red")
+        targets.append((s,(h[0], max(0,h[1]-distance(s,h))),"KEEP BACK NEUTRAL"))
+        return FormResult("red","KEEP BACK NEUTRAL",52,{"knee":knee,"back":back},pipes,targets,"SIDE",False)
+
+    if knee < 105:
+        return FormResult("yellow","HINGE MORE — DON'T SQUAT",72,{"knee":knee,"back":back},pipes,targets,"SIDE",False)
+
+    return FormResult("green","DEADLIFT FORM GOOD",96,{"knee":knee,"back":back},pipes,targets,"SIDE",True)
+
+
+def analyze_front_raise(landmarks, width, height):
+    pairs=[(LEFT_SHOULDER,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_WRIST)]
+    if not all(visible(landmarks,a) and visible(landmarks,b) for a,b in pairs):
+        return FormResult("red","SHOW BOTH ARMS",0,view="FRONT")
+
+    vals=[]
+    pipes=[]
+    for sid,wid in pairs:
+        s=xy(landmarks,sid,width,height); w=xy(landmarks,wid,width,height)
+        vals.append(vertical_angle(s,w))
+        pipes.append((s,w,"green"))
+
+    avg=sum(vals)/2
+    symmetry=abs(vals[0]-vals[1])<=15
+
+    if not symmetry:
+        return FormResult("red","RAISE BOTH ARMS EVENLY",55,{"raise":avg},pipes,[],"FRONT",False)
+    if avg < 55:
+        return FormResult("yellow","RAISE TOWARD SHOULDER HEIGHT",75,{"raise":avg},pipes,[],"FRONT",False)
+    if avg > 105:
+        return FormResult("yellow","DO NOT OVER-RAISE",78,{"raise":avg},pipes,[],"FRONT",False)
+
+    return FormResult("green","FRONT RAISE FORM GOOD",96,{"raise":avg},pipes,[],"FRONT",True)
+
+
+def analyze_hammer_curl(landmarks, width, height):
+    result=analyze_bicep(landmarks,width,height)
+    result.message = (
+        "HAMMER CURL FORM GOOD"
+        if result.status=="green"
+        else ("KEEP ELBOWS FIXED" if result.status=="yellow" else "KEEP ELBOWS FIXED")
+    )
+    return result
+
+
+def analyze_calf_raise(landmarks, width, height):
+    pairs=[(LEFT_KNEE,LEFT_ANKLE),(RIGHT_KNEE,RIGHT_ANKLE)]
+    if not all(visible(landmarks,a) and visible(landmarks,b) for a,b in pairs):
+        return FormResult("red","SHOW BOTH LEGS",0,view="FRONT")
+
+    k1,a1=xy(landmarks,*pairs[0][0:1],width,height),xy(landmarks,*pairs[0][1:2],width,height)
+    k2,a2=xy(landmarks,*pairs[1][0:1],width,height),xy(landmarks,*pairs[1][1:2],width,height)
+
+    knee_y_diff=abs(k1[1]-k2[1])
+    ankle_dx=abs(a1[0]-a2[0])
+    scale=max(distance(k1,k2),1)
+
+    pipes=[(k1,a1,"green"),(k2,a2,"green")]
+    if knee_y_diff>0.30*scale:
+        return FormResult("yellow","KEEP KNEES STABLE",75,{"calf":ankle_dx},pipes,[],"FRONT",False)
+    if ankle_dx<0.10*max(width,1):
+        return FormResult("green","CALF RAISE FORM GOOD",95,{"calf":ankle_dx},pipes,[],"FRONT",True)
+    return FormResult("yellow","KEEP BOTH SIDES EVEN",78,{"calf":ankle_dx},pipes,[],"FRONT",False)
+
+
+def analyze_glute_bridge(landmarks, width, height):
+    side=choose_side(landmarks)
+    if side=="LEFT":
+        sid,hid,kid=LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE
+    else:
+        sid,hid,kid=RIGHT_SHOULDER,RIGHT_HIP,RIGHT_KNEE
+
+    if not all(visible(landmarks,i) for i in (sid,hid,kid)):
+        return FormResult("red","SHOW SHOULDER, HIP AND KNEE",0,view="SIDE")
+
+    s=xy(landmarks,sid,width,height); h=xy(landmarks,hid,width,height); k=xy(landmarks,kid,width,height)
+    hip=angle(s,h,k)
+    pipes=[(s,h,"green"),(h,k,"green")]
+
+    if hip < 145:
+        return FormResult("yellow","EXTEND HIPS WITHOUT ARCHING",75,{"hip":hip},pipes,[],"SIDE",False)
+    return FormResult("green","GLUTE BRIDGE FORM GOOD",96,{"hip":hip},pipes,[],"SIDE",True)
+
+
+def analyze_plank(landmarks, width, height):
+    side=choose_side(landmarks)
+    if side=="LEFT":
+        sid,hid,aid=LEFT_SHOULDER,LEFT_HIP,LEFT_ANKLE
+    else:
+        sid,hid,aid=RIGHT_SHOULDER,RIGHT_HIP,RIGHT_ANKLE
+
+    if not all(visible(landmarks,i) for i in (sid,hid,aid)):
+        return FormResult("red","SHOW FULL SIDE BODY",0,view="SIDE")
+
+    s=xy(landmarks,sid,width,height); h=xy(landmarks,hid,width,height); a=xy(landmarks,aid,width,height)
+    line=angle(s,h,a)
+    pipes=[(s,h,"green"),(h,a,"green")]
+
+    if line < 165:
+        return FormResult("red","KEEP BODY IN A STRAIGHT LINE",50,{"body_line":line},pipes,[],"SIDE",False)
+    return FormResult("green","PLANK FORM GOOD",98,{"body_line":line},pipes,[],"SIDE",True)
+
+
+def analyze_mountain_climber(landmarks, width, height):
+    side=choose_side(landmarks)
+    if side=="LEFT":
+        sid,hid,kid,aid=LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE,LEFT_ANKLE
+    else:
+        sid,hid,kid,aid=RIGHT_SHOULDER,RIGHT_HIP,RIGHT_KNEE,RIGHT_ANKLE
+    if not all(visible(landmarks,i) for i in (sid,hid,kid,aid)):
+        return FormResult("red","SHOW BODY CLEARLY",0,view="SIDE")
+    s=xy(landmarks,sid,width,height); h=xy(landmarks,hid,width,height); k=xy(landmarks,kid,width,height); a=xy(landmarks,aid,width,height)
+    line=angle(s,h,a)
+    knee=angle(h,k,a)
+    pipes=[(s,h,"green"),(h,k,"green"),(k,a,"green")]
+    if line < 155:
+        return FormResult("red","KEEP HIPS CONTROLLED",50,{"body_line":line,"knee_drive":knee},pipes,[],"SIDE",False)
+    return FormResult("green" if knee is not None else "yellow","MOUNTAIN CLIMBER FORM GOOD",92,{"body_line":line,"knee_drive":knee},pipes,[],"SIDE",True)
+
+
+def analyze_burpee(landmarks, width, height):
+    side=choose_side(landmarks)
+    if side=="LEFT":
+        sid,hid,kid,aid=LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE,LEFT_ANKLE
+    else:
+        sid,hid,kid,aid=RIGHT_SHOULDER,RIGHT_HIP,RIGHT_KNEE,RIGHT_ANKLE
+    if not all(visible(landmarks,i) for i in (sid,hid,kid,aid)):
+        return FormResult("red","SHOW FULL BODY",0,view="SIDE")
+    s=xy(landmarks,sid,width,height); h=xy(landmarks,hid,width,height); k=xy(landmarks,kid,width,height); a=xy(landmarks,aid,width,height)
+    back=vertical_angle(s,h)
+    knee=angle(h,k,a)
+    pipes=[(s,h,"green"),(h,k,"green"),(k,a,"green")]
+    if back>55:
+        pipes[0]=(s,h,"red")
+        return FormResult("red","KEEP BACK CONTROLLED",52,{"back":back,"knee":knee},pipes,[],"SIDE",False)
+    return FormResult("green","BURPEE FORM GOOD",92,{"back":back,"knee":knee},pipes,[],"SIDE",True)
+
+
+def analyze_step_up(landmarks, width, height):
+    side=choose_side(landmarks)
+    if side=="LEFT":
+        hid,kid,aid=LEFT_HIP,LEFT_KNEE,LEFT_ANKLE
+    else:
+        hid,kid,aid=RIGHT_HIP,RIGHT_KNEE,RIGHT_ANKLE
+    if not all(visible(landmarks,i) for i in (hid,kid,aid)):
+        return FormResult("red","SHOW FULL LEG",0,view="SIDE")
+    h=xy(landmarks,hid,width,height); k=xy(landmarks,kid,width,height); a=xy(landmarks,aid,width,height)
+    knee=angle(h,k,a)
+    pipes=[(h,k,"green"),(k,a,"green")]
+    if k[0]-a[0] > 0.55*max(distance(k,a),1):
+        return FormResult("red","KEEP KNEE ALIGNED",55,{"knee":knee},pipes,[],"SIDE",False)
+    return FormResult("green","STEP-UP FORM GOOD",95,{"knee":knee},pipes,[],"SIDE",True)
+
+
+def analyze_reverse_lunge(landmarks, width, height):
+    result=analyze_lunge(landmarks,width,height)
+    if result.status=="green":
+        result.message="REVERSE LUNGE FORM GOOD"
+    return result
+
+
+def analyze_chest_fly(landmarks, width, height):
+    ids=[(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_ELBOW,RIGHT_WRIST)]
+    if not all(_side_triplet_visible(landmarks,x) for x in ids):
+        return FormResult("red","SHOW BOTH ARMS",0,view="FRONT")
+    vals=[]; pipes=[]
+    for sid,eid,wid in ids:
+        s=xy(landmarks,sid,width,height); e=xy(landmarks,eid,width,height); w=xy(landmarks,wid,width,height)
+        vals.append(angle(s,e,w)); pipes.extend([(s,e,"green"),(e,w,"green")])
+    symmetry=abs(vals[0]-vals[1])<=20
+    if not symmetry:
+        return FormResult("red","OPEN AND CLOSE BOTH ARMS EVENLY",55,{"elbow":sum(vals)/2},pipes,[],"FRONT",False)
+    return FormResult("green","CHEST FLY FORM GOOD",94,{"elbow":sum(vals)/2},pipes,[],"FRONT",True)
+
+
+
+# ============================================================
+# EXPANDED EXERCISE RULES — BATCH 2
+# ============================================================
+# Chest + push family. Existing analyzers remain untouched.
+# Variations reuse the validated movement geometry while exposing
+# exercise-specific feedback and keeping distinct exercise IDs.
+# ============================================================
+
+def _rename_result(result, good_message, yellow_message=None, red_message=None):
+    if result.status == "green":
+        result.message = good_message
+    elif result.status == "yellow" and yellow_message:
+        result.message = yellow_message
+    elif result.status == "red" and red_message:
+        result.message = red_message
+    return result
+
+
+def analyze_incline_dumbbell_press(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "INCLINE DUMBBELL PRESS FORM GOOD",
+        "CONTROL THE PRESS RANGE",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_decline_bench_press(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "DECLINE BENCH PRESS FORM GOOD",
+        "CONTROL THE PRESS RANGE",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_incline_bench_press(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "INCLINE BENCH PRESS FORM GOOD",
+        "CONTROL THE PRESS RANGE",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_dumbbell_bench_press(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "DUMBBELL BENCH PRESS FORM GOOD",
+        "CONTROL BOTH DUMBBELLS EVENLY",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_close_grip_bench_press(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "CLOSE-GRIP PRESS FORM GOOD",
+        "KEEP ELBOWS CONTROLLED",
+        "KEEP ELBOWS TUCKED",
+    )
+
+
+def analyze_push_up_wide_grip(landmarks, width, height):
+    return _rename_result(
+        analyze_pushup(landmarks, width, height),
+        "WIDE PUSH-UP FORM GOOD",
+        "CONTROL CHEST DESCENT",
+        "KEEP BODY STRAIGHT",
+    )
+
+
+def analyze_push_up_diamond(landmarks, width, height):
+    return _rename_result(
+        analyze_pushup(landmarks, width, height),
+        "DIAMOND PUSH-UP FORM GOOD",
+        "KEEP ELBOWS CONTROLLED",
+        "KEEP BODY STRAIGHT",
+    )
+
+
+def analyze_incline_push_up(landmarks, width, height):
+    return _rename_result(
+        analyze_pushup(landmarks, width, height),
+        "INCLINE PUSH-UP FORM GOOD",
+        "CONTROL CHEST DESCENT",
+        "KEEP BODY STRAIGHT",
+    )
+
+
+def analyze_decline_push_up(landmarks, width, height):
+    return _rename_result(
+        analyze_pushup(landmarks, width, height),
+        "DECLINE PUSH-UP FORM GOOD",
+        "CONTROL DESCENT",
+        "KEEP BODY STRAIGHT",
+    )
+
+
+def analyze_chest_press_machine(landmarks, width, height):
+    return _rename_result(
+        analyze_bench_press(landmarks, width, height),
+        "MACHINE CHEST PRESS FORM GOOD",
+        "PRESS WITH CONTROL",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_cable_crossover(landmarks, width, height):
+    result = analyze_bench_press(landmarks, width, height)
+    return _rename_result(
+        result,
+        "CABLE CROSSOVER FORM GOOD",
+        "CONTROL THE CABLE PATH",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+def analyze_low_cable_crossover(landmarks, width, height):
+    result = analyze_bench_press(landmarks, width, height)
+    return _rename_result(
+        result,
+        "LOW CABLE CROSSOVER FORM GOOD",
+        "CONTROL THE CABLE PATH",
+        "KEEP BOTH ARMS EVEN",
+    )
+
+
+
+# ============================================================
+# REP-SIGNAL REFINEMENTS
+# ============================================================
+# These override only the signal emitted to RepCounter.
+# Form status/pipes remain the same architecture.
+
+def analyze_calf_raise(landmarks, width, height):
+    pairs = [(LEFT_KNEE, LEFT_ANKLE, "LEFT"), (RIGHT_KNEE, RIGHT_ANKLE, "RIGHT")]
+    if not all(visible(landmarks, a) and visible(landmarks, b) for a,b,_ in pairs):
+        return FormResult("red", "SHOW BOTH LEGS", 0, view="FRONT")
+
+    pipes = []
+    signals = []
+    for kid, aid, _ in pairs:
+        k = xy(landmarks, kid, width, height)
+        a = xy(landmarks, aid, width, height)
+        seg = max(distance(k, a), 1.0)
+        # Heel raise signal: vertical gap from knee toward ankle.
+        calf_signal = (k[1] - a[1]) / seg
+        signals.append(calf_signal)
+        pipes.append((k, a, "green"))
+
+    value = sum(signals) / 2.0
+    symmetry = abs(signals[0] - signals[1]) <= 0.18
+
+    if not symmetry:
+        return FormResult("red", "KEEP BOTH SIDES EVEN", 55, {"calf": value}, pipes, [], "FRONT", False)
+    if value >= 1.10:
+        return FormResult("green", "CALF RAISE FORM GOOD", 96, {"calf": value}, pipes, [], "FRONT", True)
+    return FormResult("yellow", "RAISE YOUR HEELS HIGHER", 76, {"calf": value}, pipes, [], "FRONT", False)
+
+
+def analyze_mountain_climber(landmarks, width, height):
+    side_values = []
+    pipes = []
+
+    for sid, hid, kid, aid in (
+        (LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE, LEFT_ANKLE),
+        (RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE),
+    ):
+        if not all(visible(landmarks, i) for i in (sid, hid, kid, aid)):
+            continue
+        s = xy(landmarks, sid, width, height)
+        h = xy(landmarks, hid, width, height)
+        k = xy(landmarks, kid, width, height)
+        a = xy(landmarks, aid, width, height)
+        body = angle(s, h, a)
+        knee = angle(h, k, a)
+        if body is not None and knee is not None:
+            side_values.append((body, knee))
+        pipes.extend([(s, h, "green"), (h, k, "green"), (k, a, "green")])
+
+    if len(side_values) < 1:
+        return FormResult("red", "SHOW BODY CLEARLY", 0, view="SIDE")
+
+    body_values = [x[0] for x in side_values]
+    knee_values = [x[1] for x in side_values]
+    body_line = min(body_values)
+    knee_drive = min(knee_values)
+
+    if body_line < 155:
+        return FormResult("red", "KEEP HIPS CONTROLLED", 52, {"body_line": body_line, "knee_drive": knee_drive}, pipes, [], "SIDE", False)
+
+    if knee_drive <= 95:
+        return FormResult("green", "MOUNTAIN CLIMBER FORM GOOD", 94, {"body_line": body_line, "knee_drive": knee_drive}, pipes, [], "SIDE", True)
+
+    return FormResult("yellow", "DRIVE KNEE FORWARD WITH CONTROL", 78, {"body_line": body_line, "knee_drive": knee_drive}, pipes, [], "SIDE", False)
+
+
+def analyze_chest_fly(landmarks, width, height):
+    pairs = [(LEFT_SHOULDER, LEFT_WRIST), (RIGHT_SHOULDER, RIGHT_WRIST)]
+    if not all(visible(landmarks, a) and visible(landmarks, b) for a,b in pairs):
+        return FormResult("red", "SHOW BOTH ARMS", 0, view="FRONT")
+
+    points = []
+    pipes = []
+    for sid, wid in pairs:
+        s = xy(landmarks, sid, width, height)
+        w = xy(landmarks, wid, width, height)
+        points.extend([s, w])
+        pipes.append((s, w, "green"))
+
+    ls, rs = points[0], points[2]
+    lw, rw = points[1], points[3]
+    shoulder_width = max(distance(ls, rs), 1.0)
+    fly_signal = distance(lw, rw) / shoulder_width
+
+    if fly_signal <= 0.45:
+        status, message, score = "green", "CHEST FLY FORM GOOD", 95
+    elif fly_signal <= 1.10:
+        status, message, score = "yellow", "CONTROL THE FLY RANGE", 78
+    else:
+        status, message, score = "yellow", "CONTROL THE OPEN POSITION", 76
+
+    return FormResult(
+        status,
+        message,
+        score,
+        {"fly": fly_signal},
+        pipes,
+        [],
+        "FRONT",
+        status == "green",
+    )
+
+
+
+# ============================================================
 # DISPATCH
 # ============================================================
 
@@ -1742,6 +2261,78 @@ def analyze_exercise(exercise, landmarks, width, height):
 
     if exercise == "jumping_jack":
         return finish(analyze_jumping_jack(landmarks, width, height))
+
+    if exercise == "bench_press":
+        return finish(analyze_bench_press(landmarks, width, height))
+
+    if exercise == "deadlift":
+        return finish(analyze_deadlift(landmarks, width, height))
+
+    if exercise == "front_raise":
+        return finish(analyze_front_raise(landmarks, width, height))
+
+    if exercise == "hammer_curl":
+        return finish(analyze_hammer_curl(landmarks, width, height))
+
+    if exercise == "calf_raise":
+        return finish(analyze_calf_raise(landmarks, width, height))
+
+    if exercise == "glute_bridge":
+        return finish(analyze_glute_bridge(landmarks, width, height))
+
+    if exercise == "plank":
+        return finish(analyze_plank(landmarks, width, height))
+
+    if exercise == "mountain_climber":
+        return finish(analyze_mountain_climber(landmarks, width, height))
+
+    if exercise == "burpee":
+        return finish(analyze_burpee(landmarks, width, height))
+
+    if exercise == "step_up":
+        return finish(analyze_step_up(landmarks, width, height))
+
+    if exercise == "reverse_lunge":
+        return finish(analyze_reverse_lunge(landmarks, width, height))
+
+    if exercise == "chest_fly":
+        return finish(analyze_chest_fly(landmarks, width, height))
+
+    if exercise == "incline_dumbbell_press":
+        return finish(analyze_incline_dumbbell_press(landmarks, width, height))
+
+    if exercise == "decline_bench_press":
+        return finish(analyze_decline_bench_press(landmarks, width, height))
+
+    if exercise == "incline_bench_press":
+        return finish(analyze_incline_bench_press(landmarks, width, height))
+
+    if exercise == "dumbbell_bench_press":
+        return finish(analyze_dumbbell_bench_press(landmarks, width, height))
+
+    if exercise == "close_grip_bench_press":
+        return finish(analyze_close_grip_bench_press(landmarks, width, height))
+
+    if exercise == "push_up_wide_grip":
+        return finish(analyze_push_up_wide_grip(landmarks, width, height))
+
+    if exercise == "push_up_diamond":
+        return finish(analyze_push_up_diamond(landmarks, width, height))
+
+    if exercise == "incline_push_up":
+        return finish(analyze_incline_push_up(landmarks, width, height))
+
+    if exercise == "decline_push_up":
+        return finish(analyze_decline_push_up(landmarks, width, height))
+
+    if exercise == "chest_press_machine":
+        return finish(analyze_chest_press_machine(landmarks, width, height))
+
+    if exercise == "cable_crossover":
+        return finish(analyze_cable_crossover(landmarks, width, height))
+
+    if exercise == "low_cable_crossover":
+        return finish(analyze_low_cable_crossover(landmarks, width, height))
 
     return finish(FormResult(
         "yellow",
@@ -1937,40 +2528,29 @@ def apply_stability(raw_result, decision_filter, target_filter):
 # ============================================================
 
 class RepCounter:
-    """Movement-based rep counter.
-
-    Form quality and rep completion are deliberately separate. A user can
-    receive a red/yellow form warning while the completed movement still
-    counts as a rep.
-    """
+    """Stable, form-gated repetition counter."""
 
     def __init__(self):
         self.reps = 0
         self.stage = "START"
         self.last_rep_time = 0.0
         self.prev_value = None
-        self.min_value = None
-        self.max_value = None
 
     def reset(self):
         self.reps = 0
         self.stage = "START"
         self.last_rep_time = 0.0
         self.prev_value = None
-        self.min_value = None
-        self.max_value = None
 
     def _count_cycle(self, value, low, high, direction="low_high_low"):
-        """Hysteresis cycle counter; tolerant of camera angle variation."""
         if value is None:
             return self.reps
 
         now = time.time()
-        if now - self.last_rep_time < 0.30:
+        if now - self.last_rep_time < 0.32:
             self.prev_value = value
             return self.reps
 
-        # Startup: accept whichever phase the user is currently in.
         if self.stage == "START":
             if value <= low:
                 self.stage = "LOW"
@@ -1986,8 +2566,7 @@ class RepCounter:
                 self.reps += 1
                 self.stage = "LOW"
                 self.last_rep_time = now
-
-        else:  # high_low_high
+        else:
             if self.stage == "HIGH" and value <= low:
                 self.stage = "LOW"
             elif self.stage == "LOW" and value >= high:
@@ -1999,73 +2578,75 @@ class RepCounter:
         return self.reps
 
     def update(self, exercise, result):
+        # CRITICAL: only a clean form-confirmed frame may progress the
+        # movement state. Bad/red/yellow form must never create a rep.
+        if not bool(getattr(result, "good_rep", False)):
+            return self.reps
+
         angles = result.angles or {}
 
-        # Bicep: straight -> curl -> straight.
         if exercise == "bicep_curls":
-            return self._count_cycle(
-                angles.get("elbow"),
-                low=100,
-                high=135,
-                direction="high_low_high",
-            )
+            return self._count_cycle(angles.get("elbow"), 100, 135, "high_low_high")
 
-        # Squat/lunge: standing -> bottom -> standing.
         if exercise in ("squat", "lunges"):
-            return self._count_cycle(
-                angles.get("knee"),
-                low=112,
-                high=145,
-                direction="high_low_high",
-            )
+            return self._count_cycle(angles.get("knee"), 112, 145, "high_low_high")
 
-        # Push-up: locked -> bottom -> locked.
-        if exercise == "push_up":
-            return self._count_cycle(
-                angles.get("elbow"),
-                low=105,
-                high=145,
-                direction="high_low_high",
-            )
+        if exercise in ("push_up", "push_up_wide_grip", "push_up_diamond",
+                         "incline_push_up", "decline_push_up"):
+            return self._count_cycle(angles.get("elbow"), 105, 145, "high_low_high")
 
-        # Lateral raise: arms down -> shoulder height -> down.
         if exercise == "lateral_shoulder_raises":
-            return self._count_cycle(
-                angles.get("raise"),
-                low=28,
-                high=65,
-                direction="low_high_low",
-            )
+            return self._count_cycle(angles.get("raise"), 28, 65, "low_high_low")
 
-        # Shoulder press: bent -> extended overhead -> bent.
         if exercise == "shoulder_press":
-            return self._count_cycle(
-                angles.get("elbow"),
-                low=100,
-                high=150,
-                direction="low_high_low",
-            )
+            return self._count_cycle(angles.get("elbow"), 100, 150, "low_high_low")
 
-        # Triceps: bent -> extended -> bent.
         if exercise == "tricep_extension":
-            return self._count_cycle(
-                angles.get("elbow"),
-                low=80,
-                high=145,
-                direction="low_high_low",
-            )
+            return self._count_cycle(angles.get("elbow"), 80, 145, "low_high_low")
 
-        # Dumbbell row: extended arm -> pulled elbow -> extended.
         if exercise == "dumbbell_row":
-            return self._count_cycle(
-                angles.get("elbow"),
-                low=75,
-                high=145,
-                direction="high_low_high",
-            )
+            return self._count_cycle(angles.get("elbow"), 75, 145, "high_low_high")
 
-        # For movements without a dedicated angle in the current engine,
-        # preserve the current count rather than inventing a noisy signal.
+        if exercise in (
+            "bench_press", "incline_dumbbell_press", "decline_bench_press",
+            "incline_bench_press", "dumbbell_bench_press",
+            "close_grip_bench_press", "chest_press_machine", "hammer_curl"
+        ):
+            return self._count_cycle(angles.get("elbow"), 115, 150, "high_low_high")
+
+        if exercise in ("chest_fly", "cable_crossover", "low_cable_crossover"):
+            return self._count_cycle(angles.get("fly"), 0.35, 1.25, "low_high_low")
+
+        if exercise == "front_raise":
+            return self._count_cycle(angles.get("raise"), 30, 70, "low_high_low")
+
+        if exercise == "deadlift":
+            return self._count_cycle(angles.get("knee"), 108, 150, "high_low_high")
+
+        if exercise == "calf_raise":
+            return self._count_cycle(angles.get("calf"), 1.00, 1.10, "low_high_low")
+
+        if exercise == "glute_bridge":
+            return self._count_cycle(angles.get("hip"), 118, 155, "low_high_low")
+
+        # Plank is a hold, not a repetition-based movement.
+        if exercise == "plank":
+            return self.reps
+
+        if exercise == "mountain_climber":
+            return self._count_cycle(angles.get("knee_drive"), 95, 160, "high_low_high")
+
+        if exercise == "burpee":
+            return self._count_cycle(angles.get("knee"), 100, 155, "high_low_high")
+
+        if exercise == "step_up":
+            return self._count_cycle(angles.get("knee"), 100, 155, "high_low_high")
+
+        if exercise == "reverse_lunge":
+            return self._count_cycle(angles.get("knee"), 105, 150, "high_low_high")
+
+        # Sit-up and jumping-jack are preserved from the original 10-exercise
+        # engine behavior rather than inventing a new counting algorithm here.
         return self.reps
 
 
@@ -2201,6 +2782,64 @@ def instruction_lines(exercise, result):
             "LAND SOFTLY",
             "KEEP MOVEMENT CONTROLLED",
         ]
+
+    if exercise in (
+        "incline_dumbbell_press",
+        "decline_bench_press",
+        "incline_bench_press",
+        "dumbbell_bench_press",
+        "chest_press_machine",
+        "cable_crossover",
+        "low_cable_crossover",
+    ):
+        return ["PRESS BOTH ARMS EVENLY", "CONTROL THE RANGE"]
+
+    if exercise == "close_grip_bench_press":
+        return ["KEEP ELBOWS CONTROLLED", "PRESS WITH CONTROL"]
+
+    if exercise in (
+        "push_up_wide_grip",
+        "push_up_diamond",
+        "incline_push_up",
+        "decline_push_up",
+    ):
+        return ["KEEP BODY STRAIGHT", "CONTROL CHEST DESCENT"]
+
+    if exercise == "bench_press":
+        return ["KEEP WRISTS NEUTRAL", "PRESS BOTH ARMS EVENLY"]
+
+    if exercise == "deadlift":
+        return ["KEEP BACK NEUTRAL", "HINGE AT THE HIPS"]
+
+    if exercise == "front_raise":
+        return ["KEEP TORSO STILL", "RAISE BOTH ARMS EVENLY"]
+
+    if exercise == "hammer_curl":
+        return ["KEEP ELBOWS FIXED", "DON'T SWING"]
+
+    if exercise == "calf_raise":
+        return ["KEEP KNEES STABLE", "MOVE WITH CONTROL"]
+
+    if exercise == "glute_bridge":
+        return ["EXTEND HIPS", "DON'T OVERARCH"]
+
+    if exercise == "plank":
+        return ["KEEP BODY STRAIGHT", "KEEP HIPS ALIGNED"]
+
+    if exercise == "mountain_climber":
+        return ["KEEP HIPS CONTROLLED", "CONTROL KNEE DRIVE"]
+
+    if exercise == "burpee":
+        return ["KEEP BACK CONTROLLED", "LAND SOFTLY"]
+
+    if exercise == "step_up":
+        return ["KEEP KNEE ALIGNED", "CONTROL THE RETURN"]
+
+    if exercise == "reverse_lunge":
+        return ["CHEST UP", "KEEP FRONT KNEE ALIGNED"]
+
+    if exercise == "chest_fly":
+        return ["KEEP SHOULDERS STABLE", "CONTROL OPEN AND CLOSE"]
 
     return [
         "FOLLOW THE YELLOW GUIDE",
