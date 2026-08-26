@@ -319,35 +319,6 @@ def delete_history(history_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/session")
-def proxy_form_session():
-    payload = request.get_json(silent=True) or {}
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"{POSE_API_BASE}/api/session",
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return jsonify(json.loads(resp.read().decode("utf-8"))), resp.status
-    except urllib.error.HTTPError as exc:
-        try:
-            data = json.loads(exc.read().decode("utf-8"))
-        except Exception:
-            data = {"error": f"AI engine returned HTTP {exc.code}"}
-        return jsonify(data), exc.code
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return jsonify({
-            "error": "AI pose engine is temporarily unavailable",
-            "hint": "The AI service may still be waking up."
-        }), 503
-
-
 def _forward_pose(path, payload=None, timeout=10):
     """
     Prefer Render private networking. If that network hop is unreachable,
