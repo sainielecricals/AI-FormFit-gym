@@ -7,9 +7,6 @@ let poseTimer = null;
 let frameCanvas = null;
 let poseBusy = false;
 let requestSerial = 0;
-let poseApiReady = false;
-let poseApiRetryAt = 0;
-let historyNavigationReady = false;
 
 // V9: browser-side MediaPipe keeps live pose tracking independent from
 // the Python form-analysis API. The API receives landmarks only.
@@ -125,35 +122,18 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 
 function showView(name, options = {}) {
   const pushHistory = options.pushHistory !== false;
-  const safeName = [
-    "home",
-    "recommend",
-    "meal",
-    "library",
-    "form",
-    "history"
-  ].includes(name) ? name : "home";
-
-  const currentlyForm =
-    $("#formView")?.classList.contains("active-view");
-
-  if (currentlyForm && safeName !== "form") {
-    try {
-      stopFormSession();
-    } catch (_) {}
-  }
 
   $$(".view").forEach(v =>
     v.classList.remove("active-view")
   );
 
-  const target = $(`#${safeName}View`);
+  const target = $(`#${name}View`);
   if (target) target.classList.add("active-view");
 
   $$(".nav-item").forEach(b =>
     b.classList.toggle(
       "active",
-      b.dataset.view === safeName
+      b.dataset.view === name
     )
   );
 
@@ -166,31 +146,21 @@ function showView(name, options = {}) {
     history: "My workout history."
   };
 
-  const title = $("#pageTitle");
-  if (title) {
-    title.textContent =
-      titles[safeName] || "FORMFIT AI";
-  }
+  $("#pageTitle").textContent =
+    titles[name] || "FORMFIT AI";
 
-  if (safeName === "history") {
+  if (name === "history") {
     loadHistory();
   }
 
-  if (pushHistory && historyNavigationReady) {
-    const nextHash =
-      safeName === "home" ? "" : `#${safeName}`;
-
-    history.pushState(
-      { view: safeName },
-      "",
-      `${window.location.pathname}${nextHash}`
-    );
+  if (pushHistory) {
+    const hash = name === "home" ? "" : `#${name}`;
+    history.pushState({ view: name }, "", `${location.pathname}${hash}`);
   }
 }
 
-
-function initInternalNavigation() {
-  const validViews = new Set([
+function bindInternalBackNavigation() {
+  const valid = new Set([
     "home",
     "recommend",
     "meal",
@@ -199,39 +169,72 @@ function initInternalNavigation() {
     "history"
   ]);
 
-  const fromHash =
-    window.location.hash.replace("#", "");
-
-  const initial =
-    validViews.has(fromHash)
-      ? fromHash
-      : "home";
+  const initial = valid.has(location.hash.slice(1))
+    ? location.hash.slice(1)
+    : "home";
 
   history.replaceState(
     { view: initial },
     "",
-    `${window.location.pathname}${initial === "home" ? "" : `#${initial}`}`
+    `${location.pathname}${initial === "home" ? "" : `#${initial}`}`
   );
 
-  historyNavigationReady = true;
-
   window.addEventListener("popstate", (event) => {
-    const fromState =
+    const view =
       event.state?.view ||
-      window.location.hash.replace("#", "") ||
-      "home";
+      (valid.has(location.hash.slice(1))
+        ? location.hash.slice(1)
+        : "home");
 
-    showView(fromState, {
-      pushHistory: false
-    });
+    showView(view, { pushHistory: false });
   });
 
-  showView(initial, {
-    pushHistory: false
+  showView(initial, { pushHistory: false });
+}
+
+
+function bindAccountLogout() {
+  const btn = $("#logoutBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+
+  btn.dataset.bound = "1";
+
+  btn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+    } catch (_) {}
+
+    try {
+      if (typeof stopFormSession === "function") {
+        stopFormSession();
+      }
+    } catch (_) {}
+
+    const email = $("#accountEmail");
+    const avatar = $("#accountAvatar");
+
+    if (email) email.textContent = "Not signed in";
+    if (avatar) avatar.textContent = "U";
+
+    showView("home");
+
+    const overlay = $("#authOverlay");
+    if (overlay) {
+      overlay.classList.add("visible");
+      overlay.setAttribute("aria-hidden", "false");
+    }
   });
 }
 
 function bindNavigation() {
+  bindAccountLogout();
   $$("[data-view]").forEach(btn => {
     btn.addEventListener("click", () =>
       showView(btn.dataset.view)
@@ -258,50 +261,6 @@ function bindNavigation() {
   if (historyNav) {
     historyNav.addEventListener("click", () => {
       loadHistory();
-    });
-  }
-
-
-  const logoutBtn = $("#logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          cache: "no-store"
-        });
-      } catch (_) {}
-
-      stopFormSession();
-      poseApiReady = false;
-      poseApiRetryAt = 0;
-
-      const accountEmail = $("#accountEmail");
-      const accountAvatar = $("#accountAvatar");
-
-      if (accountEmail) {
-        accountEmail.textContent = "Not signed in";
-      }
-      if (accountAvatar) {
-        accountAvatar.textContent = "U";
-      }
-
-      showView("home");
-      history.replaceState(
-        { view: "home" },
-        "",
-        window.location.pathname
-      );
-
-      const overlay = $("#authOverlay");
-      if (overlay) {
-        overlay.classList.add("visible");
-        overlay.setAttribute("aria-hidden", "false");
-      }
     });
   }
 }
@@ -774,8 +733,6 @@ async function selectExercise(id) {
   if (!ex) return;
 
   currentExercise = ex;
-  poseApiReady = false;
-  poseApiRetryAt = 0;
   resetVisualState();
   setPremappedDemo(ex);
 
@@ -812,7 +769,12 @@ async function selectExercise(id) {
     );
 
     if (!response.ok) {
-      throw new Error("Pose API unavailable");
+      let detail = "Pose API unavailable";
+      try {
+        const errorData = await response.json();
+        detail = errorData?.error || detail;
+      } catch (_) {}
+      throw new Error(detail);
     }
 
     setCoachStatus(
@@ -820,9 +782,9 @@ async function selectExercise(id) {
       "var(--accent)"
     );
 
-  } catch {
+  } catch (error) {
     setCoachStatus(
-      "START POSE API FIRST",
+      `AI FORM CHECK ERROR — ${error?.message || "request failed"}`,
       "var(--red)"
     );
   }
@@ -1461,89 +1423,26 @@ async function setupBrowserPose() {
 async function sendLandmarksToAPI(landmarks, width, height) {
   if (browserPoseBusy || !currentExercise) return;
 
-  const now = Date.now();
-
-  if (!poseApiReady) {
-    if (now < poseApiRetryAt) return;
-
-    poseApiRetryAt = now + 5000;
-
-    try {
-      const health = await fetch("/api/form-engine-health", {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-
-      if (!health.ok) {
-        setCoachStatus(
-          "AI ENGINE WARMING UP…",
-          "var(--accent)"
-        );
-        return;
-      }
-
-      poseApiReady = true;
-      setCoachStatus(
-        "AI FORM CHECK RUNNING",
-        "var(--accent)"
-      );
-    } catch (_) {
-      poseApiReady = false;
-      setCoachStatus(
-        "AI ENGINE WARMING UP…",
-        "var(--accent)"
-      );
-      return;
-    }
-  }
-
   browserPoseBusy = true;
   const serial = ++requestSerial;
 
   try {
     const response = await fetch(
-      "/api/analyze_landmarks",
+      '/api/analyze_landmarks',
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "same-origin",
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           exercise: currentExercise.id,
           width,
           height,
           landmarks
         }),
-        cache: "no-store"
+        cache: 'no-store'
       }
     );
 
-    if (!response.ok) {
-      let detail = `API ${response.status}`;
-      try {
-        const errorData = await response.json();
-        detail =
-          errorData?.hint ||
-          errorData?.error ||
-          detail;
-      } catch (_) {}
-
-      if (response.status === 503) {
-        poseApiReady = false;
-        poseApiRetryAt = Date.now() + 5000;
-        setCoachStatus(
-          "AI ENGINE WARMING UP…",
-          "var(--accent)"
-        );
-        return;
-      }
-
-      throw new Error(detail);
-    }
-
-    poseApiReady = true;
+    if (!response.ok) throw new Error(`API ${response.status}`);
 
     const data = await response.json();
     if (serial !== requestSerial) return;
@@ -1554,23 +1453,32 @@ async function sendLandmarksToAPI(landmarks, width, height) {
     } else {
       visual.pipes = [];
       visual.targets = [];
-      setCoachStatus(
-        "BODY NOT DETECTED",
-        "var(--red)"
-      );
+      setCoachStatus('BODY NOT DETECTED', 'var(--red)');
     }
   } catch (error) {
-    console.error(
-      "FORMFIT landmark API:",
-      error
-    );
+    console.error('FORMFIT landmark API:', error);
 
-    setCoachStatus(
-      "AI FORM CHECK RETRYING…",
-      "var(--accent)"
-    );
+    const message =
+      error?.message === 'Failed to fetch'
+        ? 'AI FORM ENGINE OFFLINE — keep formfit_api.py running'
+        : `AI FORM CHECK ERROR — ${error?.message || 'request failed'}`;
+
+    setCoachStatus(message, 'var(--red)');
   } finally {
     browserPoseBusy = false;
+  }
+}
+
+async function processBrowserPose() {
+  if (!browserPose || !browserPoseReady || !cameraStream || browserPoseBusy) return;
+
+  const video = $('#cameraVideo');
+  if (!video || video.readyState < 2) return;
+
+  try {
+    await browserPose.send({ image: video });
+  } catch (error) {
+    console.debug('Pose frame skipped:', error);
   }
 }
 
@@ -2039,7 +1947,7 @@ document.addEventListener(
   "DOMContentLoaded",
   async () => {
     bindNavigation();
-initInternalNavigation();
+bindInternalBackNavigation();
   bindMealPlan();
     bindFormChoices();
 

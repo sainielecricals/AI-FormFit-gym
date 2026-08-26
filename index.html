@@ -594,5 +594,56 @@
 })();
 </script>
 
+
+<script data-formfit-auth-boot-safe="1">
+/* FORMFIT AUTH BOOT SAFETY — auth UI only.
+   Existing login/register/logout logic is preserved. */
+(() => {
+  const $ = (s) => document.querySelector(s);
+
+  async function syncAuthUI() {
+    const overlay = $("#authOverlay");
+    const emailEl = $("#accountEmail");
+    const avatarEl = $("#accountAvatar");
+
+    if (!overlay) return;
+
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+
+      const data = await response.json();
+
+      if (data?.authenticated && data?.user?.email) {
+        const email = String(data.user.email);
+        if (emailEl) emailEl.textContent = email;
+        if (avatarEl) avatarEl.textContent = email.charAt(0).toUpperCase();
+
+        overlay.classList.remove("visible");
+        overlay.setAttribute("aria-hidden", "true");
+      } else {
+        if (emailEl) emailEl.textContent = "Not signed in";
+        if (avatarEl) avatarEl.textContent = "U";
+
+        overlay.classList.add("visible");
+        overlay.setAttribute("aria-hidden", "false");
+      }
+    } catch (_) {
+      // Keep the existing sign-in UI available during a cold-start/transient failure.
+      overlay.classList.add("visible");
+      overlay.setAttribute("aria-hidden", "false");
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncAuthUI, { once: true });
+  } else {
+    syncAuthUI();
+  }
+})();
+</script>
+
 </body>
 </html>
