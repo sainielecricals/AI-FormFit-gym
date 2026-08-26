@@ -7,6 +7,9 @@ let poseTimer = null;
 let frameCanvas = null;
 let poseBusy = false;
 let requestSerial = 0;
+let poseApiReady = false;
+let poseApiRetryAt = 0;
+let historyNavigationReady = false;
 
 // V9: browser-side MediaPipe keeps live pose tracking independent from
 // the Python form-analysis API. The API receives landmarks only.
@@ -120,18 +123,37 @@ function setPremappedDemo(exercise) {
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
-function showView(name) {
+function showView(name, options = {}) {
+  const pushHistory = options.pushHistory !== false;
+  const safeName = [
+    "home",
+    "recommend",
+    "meal",
+    "library",
+    "form",
+    "history"
+  ].includes(name) ? name : "home";
+
+  const currentlyForm =
+    $("#formView")?.classList.contains("active-view");
+
+  if (currentlyForm && safeName !== "form") {
+    try {
+      stopFormSession();
+    } catch (_) {}
+  }
+
   $$(".view").forEach(v =>
     v.classList.remove("active-view")
   );
 
-  const target = $(`#${name}View`);
+  const target = $(`#${safeName}View`);
   if (target) target.classList.add("active-view");
 
   $$(".nav-item").forEach(b =>
     b.classList.toggle(
       "active",
-      b.dataset.view === name
+      b.dataset.view === safeName
     )
   );
 
@@ -144,12 +166,69 @@ function showView(name) {
     history: "My workout history."
   };
 
-  $("#pageTitle").textContent =
-    titles[name] || "FORMFIT AI";
+  const title = $("#pageTitle");
+  if (title) {
+    title.textContent =
+      titles[safeName] || "FORMFIT AI";
+  }
 
-  if (name === "history") {
+  if (safeName === "history") {
     loadHistory();
   }
+
+  if (pushHistory && historyNavigationReady) {
+    const nextHash =
+      safeName === "home" ? "" : `#${safeName}`;
+
+    history.pushState(
+      { view: safeName },
+      "",
+      `${window.location.pathname}${nextHash}`
+    );
+  }
+}
+
+
+function initInternalNavigation() {
+  const validViews = new Set([
+    "home",
+    "recommend",
+    "meal",
+    "library",
+    "form",
+    "history"
+  ]);
+
+  const fromHash =
+    window.location.hash.replace("#", "");
+
+  const initial =
+    validViews.has(fromHash)
+      ? fromHash
+      : "home";
+
+  history.replaceState(
+    { view: initial },
+    "",
+    `${window.location.pathname}${initial === "home" ? "" : `#${initial}`}`
+  );
+
+  historyNavigationReady = true;
+
+  window.addEventListener("popstate", (event) => {
+    const fromState =
+      event.state?.view ||
+      window.location.hash.replace("#", "") ||
+      "home";
+
+    showView(fromState, {
+      pushHistory: false
+    });
+  });
+
+  showView(initial, {
+    pushHistory: false
+  });
 }
 
 function bindNavigation() {
@@ -179,6 +258,50 @@ function bindNavigation() {
   if (historyNav) {
     historyNav.addEventListener("click", () => {
       loadHistory();
+    });
+  }
+
+
+  const logoutBtn = $("#logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+      } catch (_) {}
+
+      stopFormSession();
+      poseApiReady = false;
+      poseApiRetryAt = 0;
+
+      const accountEmail = $("#accountEmail");
+      const accountAvatar = $("#accountAvatar");
+
+      if (accountEmail) {
+        accountEmail.textContent = "Not signed in";
+      }
+      if (accountAvatar) {
+        accountAvatar.textContent = "U";
+      }
+
+      showView("home");
+      history.replaceState(
+        { view: "home" },
+        "",
+        window.location.pathname
+      );
+
+      const overlay = $("#authOverlay");
+      if (overlay) {
+        overlay.classList.add("visible");
+        overlay.setAttribute("aria-hidden", "false");
+      }
     });
   }
 }
@@ -651,6 +774,8 @@ async function selectExercise(id) {
   if (!ex) return;
 
   currentExercise = ex;
+  poseApiReady = false;
+  poseApiRetryAt = 0;
   resetVisualState();
   setPremappedDemo(ex);
 
@@ -687,12 +812,7 @@ async function selectExercise(id) {
     );
 
     if (!response.ok) {
-      let detail = "Pose API unavailable";
-      try {
-        const data = await response.json();
-        if (data?.error) detail = data.error;
-      } catch (_) {}
-      throw new Error(detail);
+      throw new Error("Pose API unavailable");
     }
 
     setCoachStatus(
@@ -700,9 +820,9 @@ async function selectExercise(id) {
       "var(--accent)"
     );
 
-  } catch (error) {
+  } catch {
     setCoachStatus(
-      `AI FORM CHECK ERROR — ${error?.message || "request failed"}`,
+      "START POSE API FIRST",
       "var(--red)"
     );
   }
@@ -713,7 +833,7 @@ async function selectExercise(id) {
 
 async function checkFormEngineHealth() {
   try {
-    const response = await fetch("/api/form-engine-health", {
+    const response = await fetch("http://127.0.0.1:5050/api/health", {
       method: "GET",
       cache: "no-store"
     });
@@ -1341,26 +1461,89 @@ async function setupBrowserPose() {
 async function sendLandmarksToAPI(landmarks, width, height) {
   if (browserPoseBusy || !currentExercise) return;
 
+  const now = Date.now();
+
+  if (!poseApiReady) {
+    if (now < poseApiRetryAt) return;
+
+    poseApiRetryAt = now + 5000;
+
+    try {
+      const health = await fetch("/api/form-engine-health", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+
+      if (!health.ok) {
+        setCoachStatus(
+          "AI ENGINE WARMING UP…",
+          "var(--accent)"
+        );
+        return;
+      }
+
+      poseApiReady = true;
+      setCoachStatus(
+        "AI FORM CHECK RUNNING",
+        "var(--accent)"
+      );
+    } catch (_) {
+      poseApiReady = false;
+      setCoachStatus(
+        "AI ENGINE WARMING UP…",
+        "var(--accent)"
+      );
+      return;
+    }
+  }
+
   browserPoseBusy = true;
   const serial = ++requestSerial;
 
   try {
     const response = await fetch(
-      '/api/analyze_landmarks',
+      "/api/analyze_landmarks",
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
         body: JSON.stringify({
           exercise: currentExercise.id,
           width,
           height,
           landmarks
         }),
-        cache: 'no-store'
+        cache: "no-store"
       }
     );
 
-    if (!response.ok) throw new Error(`API ${response.status}`);
+    if (!response.ok) {
+      let detail = `API ${response.status}`;
+      try {
+        const errorData = await response.json();
+        detail =
+          errorData?.hint ||
+          errorData?.error ||
+          detail;
+      } catch (_) {}
+
+      if (response.status === 503) {
+        poseApiReady = false;
+        poseApiRetryAt = Date.now() + 5000;
+        setCoachStatus(
+          "AI ENGINE WARMING UP…",
+          "var(--accent)"
+        );
+        return;
+      }
+
+      throw new Error(detail);
+    }
+
+    poseApiReady = true;
 
     const data = await response.json();
     if (serial !== requestSerial) return;
@@ -1371,32 +1554,23 @@ async function sendLandmarksToAPI(landmarks, width, height) {
     } else {
       visual.pipes = [];
       visual.targets = [];
-      setCoachStatus('BODY NOT DETECTED', 'var(--red)');
+      setCoachStatus(
+        "BODY NOT DETECTED",
+        "var(--red)"
+      );
     }
   } catch (error) {
-    console.error('FORMFIT landmark API:', error);
+    console.error(
+      "FORMFIT landmark API:",
+      error
+    );
 
-    const message =
-      error?.message === 'Failed to fetch'
-        ? 'AI FORM ENGINE OFFLINE — keep formfit_api.py running'
-        : `AI FORM CHECK ERROR — ${error?.message || 'request failed'}`;
-
-    setCoachStatus(message, 'var(--red)');
+    setCoachStatus(
+      "AI FORM CHECK RETRYING…",
+      "var(--accent)"
+    );
   } finally {
     browserPoseBusy = false;
-  }
-}
-
-async function processBrowserPose() {
-  if (!browserPose || !browserPoseReady || !cameraStream || browserPoseBusy) return;
-
-  const video = $('#cameraVideo');
-  if (!video || video.readyState < 2) return;
-
-  try {
-    await browserPose.send({ image: video });
-  } catch (error) {
-    console.debug('Pose frame skipped:', error);
   }
 }
 
@@ -1865,6 +2039,7 @@ document.addEventListener(
   "DOMContentLoaded",
   async () => {
     bindNavigation();
+initInternalNavigation();
   bindMealPlan();
     bindFormChoices();
 

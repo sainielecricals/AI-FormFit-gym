@@ -43,6 +43,8 @@ POSE_API_BASE = os.environ.get(
 
 if POSE_API_BASE and not POSE_API_BASE.startswith(("http://", "https://")):
     POSE_API_BASE = "http://" + POSE_API_BASE
+
+    POSE_API_BASE = "http://" + POSE_API_BASE
 EXERCISES = load_exercises()
 
 
@@ -311,66 +313,92 @@ def delete_history(history_id):
     return jsonify({"ok": True})
 
 
+def _forward_to_pose_api(path, payload=None, timeout=8, attempts=3):
+    url = f"{POSE_API_BASE}{path}"
+    body = None
+    headers = {"Accept": "application/json"}
+
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    last_error = None
+
+    for attempt in range(attempts):
+        try:
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers=headers,
+                method="POST" if body is not None else "GET",
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    data = {"error": "Invalid AI engine response"}
+                return data, resp.status
+
+        except urllib.error.HTTPError as exc:
+            try:
+                raw = exc.read().decode("utf-8")
+                data = json.loads(raw)
+            except Exception:
+                data = {"error": f"AI engine returned HTTP {exc.code}"}
+            return data, exc.code
+
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(1.5 * (attempt + 1))
+
+    return {
+        "error": "AI pose engine temporarily unavailable",
+        "hint": "The AI service may be waking up. Please wait a few seconds.",
+        "detail": str(last_error) if last_error else "connection failed",
+    }, 503
+
+
 @app.post("/api/analyze_landmarks")
 def proxy_analyze_landmarks():
-    """Same-origin bridge to the local AI pose service.
-
-    The browser talks only to the web app (port 5000). The web server forwards
-    the JSON payload to the existing pose API (port 5050). This removes browser
-    CORS/localhost mismatch issues without changing the pose engine itself.
-    """
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"error": "Invalid pose payload"}), 400
 
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"{POSE_API_BASE}/api/analyze_landmarks",
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
+    data, status = _forward_to_pose_api(
+        "/api/analyze_landmarks",
+        payload=payload,
+        timeout=10,
+        attempts=3,
     )
+    return jsonify(data), status
 
-    try:
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            raw = resp.read().decode("utf-8")
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                data = {"error": "Invalid AI engine response"}
-            return jsonify(data), resp.status
-    except urllib.error.HTTPError as exc:
-        try:
-            raw = exc.read().decode("utf-8")
-            data = json.loads(raw)
-        except Exception:
-            data = {"error": f"AI engine returned HTTP {exc.code}"}
-        return jsonify(data), exc.code
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return jsonify({
-            "error": "AI pose engine is offline",
-            "hint": "Keep formfit_api.py running on port 5050."
-        }), 503
+
+@app.post("/api/session")
+def proxy_form_session():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid session payload"}), 400
+
+    data, status = _forward_to_pose_api(
+        "/api/session",
+        payload=payload,
+        timeout=8,
+        attempts=3,
+    )
+    return jsonify(data), status
 
 
 @app.get("/api/form-engine-health")
 def form_engine_health():
-    """Non-blocking health bridge used by the UI."""
-    req = urllib.request.Request(
-        f"{POSE_API_BASE}/api/health",
-        method="GET",
-        headers={"Accept": "application/json"},
+    data, status = _forward_to_pose_api(
+        "/api/health",
+        payload=None,
+        timeout=6,
+        attempts=2,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            raw = resp.read().decode("utf-8")
-            data = json.loads(raw)
-            return jsonify(data), resp.status
-    except Exception:
-        return jsonify({"status": "offline"}), 503
+    return jsonify(data), status
 
 
 @app.get("/health")
