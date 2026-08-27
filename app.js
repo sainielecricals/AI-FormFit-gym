@@ -2,6 +2,7 @@
 let exercises = [];
 let currentExercise = null;
 let cameraStream = null;
+let resumeCameraAfterSave = false;
 
 let poseTimer = null;
 let frameCanvas = null;
@@ -50,7 +51,7 @@ const state = {
 };
 
 // PRE-MAPPED REFERENCE DEMOS — UI ONLY.
-// No runtime search or API lookup. Existing tracking/model logic is untouched.
+// Automatic YouTube fallback is also UI-only: form/model/camera logic is untouched.
 const PREMAPPED_DEMOS = {
   "squat": { id: "OOsb9DNs8dI", source: "Squat reference" },
   "bicep_curls": { id: "pQfJR-sSIvA", source: "Bicep Curl reference" },
@@ -88,33 +89,264 @@ const PREMAPPED_DEMOS = {
   "low_cable_crossover": { id: "8Um35Es-ROE", source: "BarBend • Cable Fly" },
 };
 
+// Candidate pools are only for the reference-video card.
+// When a creator disables embedding, retires a video, or YouTube reports
+// an iframe/player error, the next candidate is tried automatically.
+const VIDEO_FALLBACK_POOLS = {
+  arms: [
+    { id: "4hTUCDUQaNA", source: "Lateral Raise • alternate reference" },
+    { id: "pQfJR-sSIvA", source: "Bicep Curl reference" },
+    { id: "TwD-YGVP4Bk", source: "Hammer Curl reference" },
+    { id: "_gsUck-7M74", source: "Tricep Extension reference" },
+    { id: "fRPzHslb9XU", source: "Shoulder Press reference" },
+    { id: "c7zMmbWkUPw", source: "Shoulder Raise reference" },
+  ],
+  legs: [
+    { id: "OOsb9DNs8dI", source: "Squat reference" },
+    { id: "QF0BQS2W80k", source: "Lunge reference" },
+    { id: "lKhZvT_NkOs", source: "Reverse Lunge reference" },
+    { id: "URHdW9js6DM", source: "Step Up reference" },
+    { id: "1lKjFPrYqf0", source: "Calf Raise reference" },
+    { id: "Z6gcRfPNcZo", source: "Deadlift reference" },
+    { id: "sh63qy5EV_8", source: "Glute Bridge reference" },
+  ],
+  chest: [
+    { id: "Zw6qCAFsV0w", source: "Bench Press reference" },
+    { id: "WLTU1j7Ur8M", source: "Dumbbell Bench Press reference" },
+    { id: "Zfi0cIJi6c", source: "Close-Grip Press reference" },
+    { id: "2y6ntGVg4dw", source: "Chest Press Machine reference" },
+    { id: "mLgYNdxj-Vw", source: "Chest Fly reference" },
+    { id: "8Um35Es-ROE", source: "Cable Fly reference" },
+    { id: "WDIpL0pjun0", source: "Push-Up reference" },
+  ],
+  core: [
+    { id: "1fbU_MkV7NE", source: "Sit-Up reference" },
+    { id: "mwlp75MS6Rg", source: "Plank reference" },
+    { id: "kLh-uczlPLg", source: "Mountain Climber reference" },
+    { id: "mUYJqe_sJFE", source: "Burpee reference" },
+    { id: "uLVt6u15L98", source: "Jumping Jack reference" },
+  ],
+};
+
+const VIDEO_POOL_BY_EXERCISE = {
+  lateral_shoulder_raises: "arms",
+  front_raise: "arms",
+  bicep_curls: "arms",
+  hammer_curl: "arms",
+  shoulder_press: "arms",
+  tricep_extension: "arms",
+
+  squat: "legs",
+  lunges: "legs",
+  reverse_lunge: "legs",
+  step_up: "legs",
+  calf_raise: "legs",
+  deadlift: "legs",
+  glute_bridge: "legs",
+
+  bench_press: "chest",
+  incline_dumbbell_press: "chest",
+  decline_bench_press: "chest",
+  incline_bench_press: "chest",
+  dumbbell_bench_press: "chest",
+  close_grip_bench_press: "chest",
+  push_up: "chest",
+  push_up_wide_grip: "chest",
+  push_up_diamond: "chest",
+  incline_push_up: "chest",
+  decline_push_up: "chest",
+  chest_press_machine: "chest",
+  chest_fly: "chest",
+  cable_crossover: "chest",
+  low_cable_crossover: "chest",
+
+  sit_up: "core",
+  plank: "core",
+  mountain_climber: "core",
+  burpee: "core",
+  jumping_jack: "core",
+  dumbbell_row: "arms",
+};
+
+let referencePlayer = null;
+let referencePlayerExerciseId = "";
+let referenceCandidates = [];
+let referenceCandidateIndex = -1;
+let youtubeApiPromise = null;
+let referenceProbeTimer = null;
+let referenceLoadSerial = 0;
+let referenceProbeHost = null;
+
+function dedupeVideoCandidates(items) {
+  const seen = new Set();
+  return (items || []).filter(item => {
+    if (!item?.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function getReferenceCandidates(exercise) {
+  const primary = PREMAPPED_DEMOS[exercise?.id];
+  const poolName = VIDEO_POOL_BY_EXERCISE[exercise?.id];
+  const pool = VIDEO_FALLBACK_POOLS[poolName] || [];
+  return dedupeVideoCandidates([primary, ...pool]);
+}
+
+function loadYouTubeIframeAPI() {
+  if (window.YT && typeof window.YT.Player === "function") {
+    return Promise.resolve(window.YT);
+  }
+  if (youtubeApiPromise) return youtubeApiPromise;
+
+  youtubeApiPromise = new Promise(resolve => {
+    const finish = () => resolve(
+      window.YT && typeof window.YT.Player === "function" ? window.YT : null
+    );
+    const previous = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      try { if (typeof previous === "function") previous(); } catch (_) {}
+      finish();
+    };
+    const existing = document.querySelector('script[data-formfit-youtube="1"]');
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      script.dataset.formfitYoutube = "1";
+      script.onerror = finish;
+      document.head.appendChild(script);
+    }
+    setTimeout(finish, 8000);
+  });
+  return youtubeApiPromise;
+}
+
+function setReferenceFrameFallbackMessage(text) {
+  const source = $("#premappedDemoSource");
+  if (source) source.textContent = text;
+}
+
+function destroyReferenceProbe() {
+  if (referenceProbeTimer) {
+    clearTimeout(referenceProbeTimer);
+    referenceProbeTimer = null;
+  }
+  if (referencePlayer && typeof referencePlayer.destroy === "function") {
+    try { referencePlayer.destroy(); } catch (_) {}
+  }
+  referencePlayer = null;
+}
+
+function ensureReferenceProbeHost() {
+  if (referenceProbeHost) return referenceProbeHost;
+  referenceProbeHost = document.createElement("div");
+  referenceProbeHost.id = "formfit-reference-probe";
+  referenceProbeHost.setAttribute("aria-hidden", "true");
+  referenceProbeHost.style.position = "fixed";
+  referenceProbeHost.style.width = "1px";
+  referenceProbeHost.style.height = "1px";
+  referenceProbeHost.style.left = "-10000px";
+  referenceProbeHost.style.top = "-10000px";
+  referenceProbeHost.style.opacity = "0";
+  referenceProbeHost.style.pointerEvents = "none";
+  referenceProbeHost.style.overflow = "hidden";
+  document.body.appendChild(referenceProbeHost);
+  return referenceProbeHost;
+}
+
+function loadReferenceCandidate(index) {
+  const iframe = $("#premappedDemoFrameVideo");
+  const title = $("#premappedDemoTitle");
+  if (!iframe || !title || !currentExercise) return;
+
+  destroyReferenceProbe();
+
+  if (index >= referenceCandidates.length) {
+    setReferenceFrameFallbackMessage("No playable reference found — Watch on YouTube");
+    return;
+  }
+
+  referenceCandidateIndex = index;
+  const candidate = referenceCandidates[index];
+  const loadSerial = ++referenceLoadSerial;
+  const exerciseIdAtStart = currentExercise.id;
+
+  title.textContent = `${currentExercise.name} Demo`;
+  setReferenceFrameFallbackMessage(candidate.source);
+
+  // IMPORTANT: the visible demo stays a plain YouTube iframe.
+  // The API is used only by a hidden probe so it can never blank the UI video.
+  iframe.src =
+    `https://www.youtube-nocookie.com/embed/${candidate.id}` +
+    `?autoplay=1&mute=1&controls=1&rel=0&playsinline=1`;
+
+  // Probe this candidate in the background. If YouTube reports an error,
+  // automatically try the next candidate without disturbing the visible iframe.
+  loadYouTubeIframeAPI().then(YT => {
+    if (!YT || !currentExercise) return;
+    if (loadSerial !== referenceLoadSerial || currentExercise.id !== exerciseIdAtStart) return;
+
+    const host = ensureReferenceProbeHost();
+    host.innerHTML = `<div id="formfit-reference-probe-player"></div>`;
+
+    referencePlayer = new YT.Player("formfit-reference-probe-player", {
+      width: 1,
+      height: 1,
+      videoId: candidate.id,
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        rel: 0,
+        playsinline: 1
+      },
+      events: {
+        onReady: event => {
+          try { event.target.mute(); } catch (_) {}
+          referenceProbeTimer = setTimeout(() => {
+            if (loadSerial !== referenceLoadSerial) return;
+            try { event.target.stopVideo(); } catch (_) {}
+          }, 2500);
+        },
+        onError: event => {
+          if (loadSerial !== referenceLoadSerial) return;
+          if (referenceCandidateIndex < referenceCandidates.length - 1) {
+            loadReferenceCandidate(referenceCandidateIndex + 1);
+          } else {
+            setReferenceFrameFallbackMessage("No playable reference found — Watch on YouTube");
+          }
+        }
+      }
+    });
+  }).catch(() => {
+    // Visible direct iframe remains untouched if the API is unavailable.
+  });
+}
+
 function setPremappedDemo(exercise) {
   const iframe = $("#premappedDemoFrameVideo");
   const title = $("#premappedDemoTitle");
   const source = $("#premappedDemoSource");
-
   if (!iframe || !title || !source) return;
 
-  const ref = PREMAPPED_DEMOS[exercise?.id];
-
-  iframe.src = "about:blank";
+  referenceCandidates = getReferenceCandidates(exercise);
+  referenceLoadSerial++;
+  referenceCandidateIndex = -1;
+  referencePlayerExerciseId = exercise?.id || "";
+  destroyReferenceProbe();
 
   title.textContent = exercise?.name
     ? `${exercise.name} Demo`
     : "Exercise Demo";
 
-  if (!ref) {
+  if (!referenceCandidates.length) {
+    iframe.src = "about:blank";
     source.textContent = "Reference demonstration not mapped yet.";
     return;
   }
 
-  iframe.src =
-    `https://www.youtube-nocookie.com/embed/${ref.id}` +
-    `?autoplay=1&mute=1&controls=1&rel=0&playsinline=1`;
-
-  source.textContent = ref.source;
+  loadReferenceCandidate(0);
 }
-
 
 
 const $ = (s) => document.querySelector(s);
@@ -790,6 +1022,18 @@ async function selectExercise(id) {
   }
 
   showView("form");
+
+  // When the user just finished a live session, returning to another
+  // exercise should resume the camera automatically. First-time entry keeps
+  // the existing explicit Enable Camera behavior.
+  if (resumeCameraAfterSave) {
+    resumeCameraAfterSave = false;
+    setTimeout(() => {
+      if (currentExercise?.id === ex.id && !cameraStream) {
+        enableCamera();
+      }
+    }, 0);
+  }
 }
 
 
@@ -1590,11 +1834,20 @@ async function endAndSaveFormSession() {
   }
 
   try {
+    // Remember whether this was a live camera session so the next selected
+    // exercise can resume the camera automatically after a successful save.
+    resumeCameraAfterSave = Boolean(cameraStream);
+
     await saveCurrentFormSession();
     stopFormSession();
 
     currentExercise = null;
     resetVisualState();
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = "✓ End & Save Session";
+    }
 
     const status = $("#coachStatus");
     if (status) {

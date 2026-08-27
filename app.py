@@ -99,7 +99,8 @@ def db():
             postgres=True,
         )
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute("PRAGMA busy_timeout = 10000")
     conn.row_factory = sqlite3.Row
     return DBAdapter(conn, postgres=False)
 
@@ -425,13 +426,13 @@ def save_history():
             """INSERT INTO workout_history
             (user_id, kind, exercise_id, exercise_name, reps, score,
              duration_seconds, calories, status, view, message, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (current_user_id(), kind, exercise_id, exercise_name, reps, score,
              duration, calories, status, view, message,
              json.dumps(safe_payload) if safe_payload is not None else None,
              now),
         )
-        history_id = inserted_id(cur)
+        history_id = cur.lastrowid
 
     return jsonify({"ok": True, "id": int(history_id), "created_at": now}), 201
 

@@ -317,18 +317,24 @@ def enhance_result(result, exercise, landmarks, width, height):
     knowledge.apply_knowledge(result, exercise, landmarks, width, height)
     _add_position_guides(result, exercise, landmarks, width, height)
 
-    # Only a high-confidence, high-priority issue can lower an otherwise
-    # green result. This prevents the new layer from breaking existing form
-    # decisions on noisy frames.
-    high = [x for x in result.issues if x["priority"] == "high"]
-    if high and result.status == "green":
-        result.status = "red"
-        result.message = high[0]["title"]
-        result.score = min(int(result.score), 65)
-    elif result.issues and result.status == "green":
-        result.status = "yellow"
-        result.message = result.issues[0]["title"]
-        result.score = min(int(result.score), 82)
+    # HUMAN-TRAINER MODE:
+    # The core pose engine remains the judge. This knowledge layer coaches
+    # around it instead of turning every small deviation into a failure.
+    #
+    # A single imperfect frame can produce an issue/recommendation, but it
+    # must NOT downgrade an otherwise-green core result. The existing
+    # DecisionStabilizer in the API already provides temporal consistency.
+    #
+    # Therefore:
+    # - green stays green
+    # - yellow/red stay owned by the core engine
+    # - knowledge issues are coaching hints, not automatic verdicts
+    #
+    # This prevents the assistant from becoming unrealistically strict.
+    if result.status in ("yellow", "red") and result.issues:
+        # Keep the core engine's message/score. Only use knowledge as an
+        # additional recommendation stream.
+        pass
 
     # Keep recommendations bounded so the UI remains readable.
     result.recommendations = result.recommendations[:3]
