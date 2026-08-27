@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, request, send_from_directory, session
 from pathlib import Path
 from functools import wraps
+from contextlib import contextmanager
+from collections.abc import Mapping
 from datetime import datetime, timezone
 import json
 import os
@@ -9,6 +11,12 @@ import sqlite3
 import sys
 import urllib.error
 import urllib.request
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -35,6 +43,8 @@ app.config.update(
 )
 
 DB_PATH = BASE / "formfit_users.db"
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+
 POSE_API_BASE = os.environ.get(
     "FORMFIT_POSE_API_URL",
     "http://127.0.0.1:5050",
@@ -50,6 +60,120 @@ POSE_API_FALLBACK_BASE = os.environ.get(
 
 if not POSE_API_FALLBACK_BASE and os.environ.get("FORMFIT_PRODUCTION", "").lower() == "true":
     POSE_API_FALLBACK_BASE = "https://formfit-ai.onrender.com"
+
+
+class DBAdapter:
+    """Existing SQLite queries, with Postgres transparently used on Render."""
+
+    def __init__(self, conn, postgres=False):
+        self.conn = conn
+        self.postgres = postgres
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type:
+            self.conn.rollback()
+        else:
+            self.conn.commit()
+        self.conn.close()
+
+    def execute(self, query, params=()):
+        if self.postgres:
+            query = query.replace("?", "%s")
+        return self.conn.execute(query, params)
+
+    def executescript(self, script):
+        if self.postgres:
+            raise RuntimeError("executescript is not available for Postgres")
+        return self.conn.executescript(script)
+
+
+def db():
+    if DATABASE_URL:
+        if psycopg is None:
+            raise RuntimeError("DATABASE_URL is set but psycopg is not installed")
+        return DBAdapter(
+            psycopg.connect(DATABASE_URL, row_factory=dict_row),
+            postgres=True,
+        )
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return DBAdapter(conn, postgres=False)
+
+
+def inserted_id(cur):
+    if DATABASE_URL:
+        row = cur.fetchone()
+        return int(row["id"] if isinstance(row, Mapping) else row[0])
+    return int(cur.lastrowid)
+
+
+def init_db():
+    with db() as conn:
+        if conn.postgres:
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGSERIAL PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS workout_history (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    kind TEXT NOT NULL DEFAULT 'form_session',
+                    exercise_id TEXT,
+                    exercise_name TEXT,
+                    reps INTEGER NOT NULL DEFAULT 0,
+                    score DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    duration_seconds INTEGER NOT NULL DEFAULT 0,
+                    calories DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    status TEXT,
+                    view TEXT,
+                    message TEXT,
+                    payload_json TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_history_user_created
+                ON workout_history(user_id, created_at DESC)
+            """)
+        else:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS workout_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    kind TEXT NOT NULL DEFAULT 'form_session',
+                    exercise_id TEXT,
+                    exercise_name TEXT,
+                    reps INTEGER NOT NULL DEFAULT 0,
+                    score REAL NOT NULL DEFAULT 0,
+                    duration_seconds INTEGER NOT NULL DEFAULT 0,
+                    calories REAL NOT NULL DEFAULT 0,
+                    status TEXT,
+                    view TEXT,
+                    message TEXT,
+                    payload_json TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_history_user_created
+                ON workout_history(user_id, created_at DESC);
+            """)
 
 EXERCISES = load_exercises()
 
@@ -189,12 +313,16 @@ def register():
     try:
         with db() as conn:
             cur = conn.execute(
-                "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?)",
+                "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id",
                 (email, generate_password_hash(password), now),
             )
-            user_id = cur.lastrowid
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "An account with this email already exists"}), 409
+            user_id = inserted_id(cur)
+    except Exception as exc:
+        if isinstance(exc, sqlite3.IntegrityError) or (
+            psycopg is not None and isinstance(exc, psycopg.errors.UniqueViolation)
+        ):
+            return jsonify({"error": "An account with this email already exists"}), 409
+        raise
 
     session.clear()
     session.permanent = True
@@ -297,13 +425,13 @@ def save_history():
             """INSERT INTO workout_history
             (user_id, kind, exercise_id, exercise_name, reps, score,
              duration_seconds, calories, status, view, message, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (current_user_id(), kind, exercise_id, exercise_name, reps, score,
              duration, calories, status, view, message,
              json.dumps(safe_payload) if safe_payload is not None else None,
              now),
         )
-        history_id = cur.lastrowid
+        history_id = inserted_id(cur)
 
     return jsonify({"ok": True, "id": int(history_id), "created_at": now}), 201
 
