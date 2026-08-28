@@ -14,8 +14,11 @@ let requestSerial = 0;
 let browserPose = null;
 let browserPoseReady = false;
 let browserPoseBusy = false;
-let lastPoseSend = 0;
-const POSE_SEND_INTERVAL = 45; // ~22 FPS form decisions
+
+// Adaptive camera-rate mode:
+// There is intentionally NO fixed 30/60 FPS timer here. Browser MediaPipe
+// receives frames from the actual <video> stream, so the analysis follows
+// the camera's delivered frame rate.
 
 
 // ------------------------------------------------------------
@@ -38,10 +41,9 @@ const visual = {
 let formClockTimer = null;
 let formStartTime = 0;
 
-// FORM-GATED REP DISPLAY:
-// The backend can report movement reps, but the UI only accepts a new rep
-// when the current form decision is GREEN. This keeps the existing rep
-// engine untouched and gates only the accepted/displayed count.
+// REP DISPLAY:
+// Backend RepCounter is authoritative. GREEN and YELLOW completed cycles
+// are valid repetitions; RED is the hard rejection state.
 let acceptedReps = 0;
 let lastRawReps = 0;
 
@@ -1151,15 +1153,18 @@ function smoothPoint(oldPoint, newPoint, factor) {
   const dy = newPoint.y - oldPoint.y;
   const distance = Math.hypot(dx, dy);
 
-  // Responsive on fast movement, more stable on small landmark jitter.
-  // These values only affect rendering; they do not change pose decisions.
+  // Balanced trainer-style smoothing:
+  // - fast movement follows quickly without a long trailing tail
+  // - normal movement stays stable
+  // - tiny landmark jitter is visibly filtered
+  // These values affect rendering only.
   const adaptive = distance > 0.055
-    ? 0.92
+    ? 0.88
     : distance > 0.025
-      ? 0.86
-      : 0.78;
+      ? 0.82
+      : 0.74;
 
-  const k = Math.max(factor, adaptive);
+  const k = Math.min(0.92, Math.max(factor, adaptive));
 
   return {
     x: smoothNumber(oldPoint.x, newPoint.x, k),
@@ -1180,8 +1185,8 @@ function pipeSegmentDistance(a, b, x, y) {
 }
 
 function smoothPipes(newPipes) {
-  // Match segments by their geometry, never by array index. If a low-
-  // confidence joint disappears, the remaining pipe order can change.
+  // Match segments by their geometry. Rendering is smoothed only;
+  // analysis/status/reps remain untouched.
   const factor = 0.78;
   const oldPipes = visual.pipes || [];
   const used = new Set();
@@ -1276,13 +1281,10 @@ function drawPoseResult(data) {
   const rawReps = Number(data.reps ?? lastRawReps);
   const currentStatus = data.status || visual.status || "yellow";
 
-  // Only accept NEW reps when the evaluated form is green.
+  // Backend RepCounter already rejects RED cycles. GREEN and YELLOW
+  // completed cycles are both valid repetitions for the display.
   if (rawReps > lastRawReps) {
-    if (currentStatus === "green") {
-      acceptedReps += (rawReps - lastRawReps);
-    }
-    // When form is not green, the newly reported backend reps are intentionally
-    // not added to acceptedReps.
+    acceptedReps += (rawReps - lastRawReps);
   }
 
   lastRawReps = Math.max(lastRawReps, rawReps);
@@ -1641,9 +1643,10 @@ async function setupBrowserPose() {
       return;
     }
 
-    const now = performance.now();
-    if (now - lastPoseSend < POSE_SEND_INTERVAL || browserPoseBusy) return;
-    lastPoseSend = now;
+    // One analysis request per delivered camera frame, subject only to the
+    // existing no-overlap guard. Slower cameras naturally produce fewer
+    // requests; faster cameras can produce more until the API is busy.
+    if (browserPoseBusy) return;
 
     const video = $('#cameraVideo');
     const width = video?.videoWidth || 1280;
@@ -1728,14 +1731,36 @@ async function processBrowserPose() {
 
 function startPoseLoop() {
   stopPoseLoop();
-  let lastVideoTime = -1;
 
+  const video = $('#cameraVideo');
+  if (!video) return;
+
+  // Best path: schedule exactly when a new decoded camera frame arrives.
+  if ("requestVideoFrameCallback" in video) {
+    const onVideoFrame = async () => {
+      if (!cameraStream) return;
+      await processBrowserPose();
+      if (cameraStream) {
+        poseTimer = video.requestVideoFrameCallback(onVideoFrame);
+      }
+    };
+
+    poseTimer = video.requestVideoFrameCallback(onVideoFrame);
+    return;
+  }
+
+  // Compatibility fallback for browsers without requestVideoFrameCallback.
+  let lastVideoTime = -1;
   const tick = async () => {
     if (!cameraStream) return;
 
-    const video = $('#cameraVideo');
-    if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-      lastVideoTime = video.currentTime;
+    const currentVideo = $('#cameraVideo');
+    if (
+      currentVideo &&
+      currentVideo.readyState >= 2 &&
+      currentVideo.currentTime !== lastVideoTime
+    ) {
+      lastVideoTime = currentVideo.currentTime;
       await processBrowserPose();
     }
 
@@ -1746,7 +1771,13 @@ function startPoseLoop() {
 }
 
 function stopPoseLoop() {
+  const video = $('#cameraVideo');
+
   if (poseTimer) {
+    // requestVideoFrameCallback IDs are canceled with cancelVideoFrameCallback.
+    if (video && "cancelVideoFrameCallback" in video) {
+      try { video.cancelVideoFrameCallback(poseTimer); } catch (_) {}
+    }
     cancelAnimationFrame(poseTimer);
     poseTimer = null;
   }
@@ -1966,7 +1997,9 @@ async function enableCamera() {
         facingMode: 'user',
         width: { ideal: 1280 },
         height: { ideal: 720 },
-        frameRate: { ideal: 30, max: 30 }
+        // Ask for smooth/high FPS, but let the browser/camera choose the
+        // supported frame rate. We do not force a fixed FPS.
+        frameRate: { ideal: 60 }
       },
       audio: false
     });

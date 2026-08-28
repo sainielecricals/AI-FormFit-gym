@@ -640,6 +640,10 @@ def analyze_bicep(landmarks, width, height):
                     f"Keep {name.lower()} elbow close."
                 )
 
+        if elbow_bad_count == 2:
+            pipes[1] = (pipes[1][0], pipes[1][1], "red")
+            pipes[3] = (pipes[3][0], pipes[3][1], "red")
+
         symmetry = abs(
             angles[0] - angles[1]
         ) <= 20
@@ -1149,6 +1153,7 @@ def analyze_shoulder_press(landmarks, width, height):
         status = "red"
         message = torso_message
     elif not symmetry:
+        pipes = [(a, b, "red") for a, b, _ in pipes]
         status = "red"
         message = "KEEP BOTH ARMS EVEN"
     elif left_up and right_up:
@@ -1233,6 +1238,7 @@ def analyze_lateral(landmarks, width, height):
     good_height = 65 <= sum(values) / 2 <= 100
 
     if not symmetry:
+        pipes = [(a, b, "red") for a, b, _ in pipes]
         status = "red"
         message = "RAISE BOTH ARMS EVENLY"
     elif good_height:
@@ -1576,11 +1582,13 @@ def analyze_jumping_jack(landmarks, width, height):
     status = "green" if arms_open else "yellow"
     message = "GOOD JACK POSITION" if arms_open else "OPEN YOUR ARMS"
 
+    arm_span = abs(lw[0] - rw[0]) / shoulder_width
+
     return FormResult(
         status,
         message,
         98 if arms_open else 75,
-        {},
+        {"arm_span": arm_span},
         pipes,
         [],
         "FRONT",
@@ -1664,6 +1672,7 @@ def analyze_bench_press(landmarks, width, height):
     good_range = all(70 <= v <= 160 for v in values)
 
     if bad_sym:
+        pipes = [(a, b, "red") for a, b, _ in pipes]
         return FormResult(
             "red", "PRESS BOTH ARMS EVENLY", 55,
             {"elbow": sum(values)/2}, pipes, [], "FRONT", False
@@ -1727,6 +1736,7 @@ def analyze_front_raise(landmarks, width, height):
     symmetry=abs(vals[0]-vals[1])<=15
 
     if not symmetry:
+        pipes = [(a, b, "red") for a, b, _ in pipes]
         return FormResult("red","RAISE BOTH ARMS EVENLY",55,{"raise":avg},pipes,[],"FRONT",False)
     if avg < 55:
         return FormResult("yellow","RAISE TOWARD SHOULDER HEIGHT",75,{"raise":avg},pipes,[],"FRONT",False)
@@ -2227,9 +2237,60 @@ def add_professional_pipes(result, landmarks, width, height):
     # pipes sequentially.
 
 
+
+
 def analyze_exercise(exercise, landmarks, width, height):
     def finish(result):
         add_professional_pipes(result, landmarks, width, height)
+
+        # Bilateral leg red is ONLY applied if BOTH visible legs independently
+        # violate the same existing knee/ankle alignment rule.
+        if exercise in {"squat", "lunges", "reverse_lunge", "step_up"}:
+            ids = (
+                LEFT_HIP, LEFT_KNEE, LEFT_ANKLE,
+                RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE,
+            )
+            if all(visible(landmarks, i, 0.50) for i in ids):
+                fails = []
+                for h_id, k_id, a_id in (
+                    (LEFT_HIP, LEFT_KNEE, LEFT_ANKLE),
+                    (RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE),
+                ):
+                    h = xy(landmarks, h_id, width, height)
+                    k = xy(landmarks, k_id, width, height)
+                    a = xy(landmarks, a_id, width, height)
+                    leg = max(distance(k, a), 1.0)
+                    fails.append(abs(k[0] - a[0]) / leg > 0.70)
+
+                if all(fails):
+                    leg_ids = {
+                        (LEFT_HIP, LEFT_KNEE),
+                        (LEFT_KNEE, LEFT_ANKLE),
+                        (RIGHT_HIP, RIGHT_KNEE),
+                        (RIGHT_KNEE, RIGHT_ANKLE),
+                    }
+
+                    def same_seg(a, b, x, y, tol=18):
+                        return (
+                            distance(a, x) <= tol and distance(b, y) <= tol
+                        ) or (
+                            distance(a, y) <= tol and distance(b, x) <= tol
+                        )
+
+                    updated = []
+                    for pipe in result.pipes:
+                        a, b, status = pipe[:3]
+                        extra = tuple(pipe[3:])
+                        red = False
+                        for ia, ib in leg_ids:
+                            x = xy(landmarks, ia, width, height)
+                            y = xy(landmarks, ib, width, height)
+                            if same_seg(a, b, x, y):
+                                red = True
+                                break
+                        updated.append((a, b, "red") + extra if red else pipe)
+                    result.pipes = updated
+
         return result
 
     if exercise == "bicep_curls":
@@ -2578,12 +2639,34 @@ class RepCounter:
         return self.reps
 
     def update(self, exercise, result):
-        # CRITICAL: only a clean form-confirmed frame may progress the
-        # movement state. Bad/red/yellow form must never create a rep.
-        if not bool(getattr(result, "good_rep", False)):
-            return self.reps
-
         angles = result.angles or {}
+
+        # Sit-up and jumping-jack expose a movement signal whose opposite
+        # phase is intentionally not a green form state. Their counters must
+        # see both phases; all existing exercises keep the original
+        # form-gated behavior below.
+        if exercise == "sit_up":
+            return self._count_cycle(
+                angles.get("hip"),
+                100,
+                150,
+                "high_low_high",
+            )
+
+        if exercise == "jumping_jack":
+            return self._count_cycle(
+                angles.get("arm_span"),
+                1.20,
+                1.70,
+                "low_high_low",
+            )
+
+        # HUMAN-TRAINER REP MODE:
+        # GREEN and YELLOW are both valid movement states. A yellow frame
+        # means "adjust while moving", not "the repetition did not happen".
+        # Only RED blocks rep progression.
+        if getattr(result, "status", "red") == "red":
+            return self.reps
 
         if exercise == "bicep_curls":
             return self._count_cycle(angles.get("elbow"), 100, 135, "high_low_high")
