@@ -35,8 +35,28 @@ const visual = {
   message: "",
   lastView: "",
   lastTime: performance.now(),
-  frameId: 0
+  frameId: 0,
+
+  // LIVE CAMERA PIPE STATE:
+  // Geometry follows the newest browser MediaPipe result. The remote API
+  // only supplies form status/color; it never controls the pipe position.
+  liveLandmarks: [],
+  livePipeStatuses: new Map(),
+  livePipeStatusExpiry: 0
 };
+
+const LIVE_POSE_SEGMENTS = [
+  [0, 11], [0, 12],
+  [11, 12],
+  [11, 13], [13, 15],
+  [12, 14], [14, 16],
+  [11, 23], [12, 24],
+  [23, 24],
+  [23, 25], [25, 27],
+  [24, 26], [26, 28],
+  [27, 29], [28, 30],
+  [27, 31], [28, 32]
+];
 
 let formClockTimer = null;
 let formStartTime = 0;
@@ -949,6 +969,9 @@ function renderExercises() {
 function resetVisualState() {
   visual.pipes = [];
   visual.targets = [];
+  visual.liveLandmarks = [];
+  visual.livePipeStatuses.clear();
+  visual.livePipeStatusExpiry = 0;
   visual.score = 0;
   visual.reps = 0;
   acceptedReps = 0;
@@ -1140,6 +1163,164 @@ function pointToCanvas(point, canvas) {
     x: offsetX + (1 - Number(point.x)) * drawW,
     y: offsetY + Number(point.y) * drawH
   };
+}
+
+
+function livePipeKey(a, b) {
+  return `${Math.min(a, b)}-${Math.max(a, b)}`;
+}
+
+function normalizedStatus(value) {
+  const status = String(value ?? "").trim().toLowerCase();
+  return ["green", "yellow", "red"].includes(status) ? status : "green";
+}
+
+function liveDistance(a, b) {
+  return Math.hypot(
+    Number(a?.x || 0) - Number(b?.x || 0),
+    Number(a?.y || 0) - Number(b?.y || 0)
+  );
+}
+
+function setLivePipeStatusesFromApi(data, requestLandmarks, width, height) {
+  if (
+    !Array.isArray(requestLandmarks) ||
+    requestLandmarks.length < 33
+  ) {
+    return;
+  }
+
+  const next = new Map();
+  const maxPointDistance = Math.max(
+    40,
+    Math.min(width, height) * 0.075
+  );
+
+  // Match API pipe endpoints (pixel coordinates) to the anatomical
+  // MediaPipe landmark indices from the exact request that produced them.
+  const nearest = (point) => {
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+
+    for (let i = 0; i < requestLandmarks.length; i++) {
+      const lm = requestLandmarks[i];
+      const px = Number(lm.x) * width;
+      const py = Number(lm.y) * height;
+      const d = Math.hypot(point.x - px, point.y - py);
+
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestIndex = i;
+      }
+    }
+
+    return bestDistance <= maxPointDistance ? bestIndex : -1;
+  };
+
+  for (const pipe of (data?.pipes || [])) {
+    if (!pipe?.a || !pipe?.b) continue;
+
+    const a = {
+      x: Number(pipe.a.x ?? pipe.a[0]),
+      y: Number(pipe.a.y ?? pipe.a[1])
+    };
+    const b = {
+      x: Number(pipe.b.x ?? pipe.b[0]),
+      y: Number(pipe.b.y ?? pipe.b[1])
+    };
+
+    if (
+      !Number.isFinite(a.x) ||
+      !Number.isFinite(a.y) ||
+      !Number.isFinite(b.x) ||
+      !Number.isFinite(b.y)
+    ) continue;
+
+    const ia = nearest(a);
+    const ib = nearest(b);
+
+    if (ia < 0 || ib < 0 || ia === ib) continue;
+
+    const key = livePipeKey(ia, ib);
+    const status = normalizedStatus(pipe.status);
+
+    const rank = s =>
+      s === "red" ? 3 :
+      s === "yellow" ? 2 : 1;
+
+    if (!next.has(key) || rank(status) > rank(next.get(key))) {
+      next.set(key, status);
+    }
+  }
+
+  // Preserve the previous status very briefly between API responses so a
+  // slower hosted API doesn't make the pipe flash green.
+  visual.livePipeStatuses = next;
+  visual.livePipeStatusExpiry = performance.now() + 900;
+}
+
+function buildLivePipesFromLandmarks(landmarks) {
+  if (!Array.isArray(landmarks) || landmarks.length < 33) {
+    visual.liveLandmarks = [];
+    visual.pipes = [];
+    return;
+  }
+
+  const previousByKey = new Map(
+    (visual.pipes || [])
+      .filter(pipe => pipe?.key)
+      .map(pipe => [pipe.key, pipe])
+  );
+
+  const newPipes = [];
+
+  for (const [ia, ib] of LIVE_POSE_SEGMENTS) {
+    const aLm = landmarks[ia];
+    const bLm = landmarks[ib];
+
+    if (!aLm || !bLm) continue;
+
+    if (
+      Number(aLm.visibility ?? 1) < 0.35 ||
+      Number(bLm.visibility ?? 1) < 0.35
+    ) {
+      continue;
+    }
+
+    const key = livePipeKey(ia, ib);
+    const previous = previousByKey.get(key);
+
+    // High responsiveness for movement, light smoothing for tiny jitter.
+    const alpha = 0.88;
+    const nextA = {x: Number(aLm.x), y: Number(aLm.y)};
+    const nextB = {x: Number(bLm.x), y: Number(bLm.y)};
+
+    const smooth = (oldPoint, nextPoint) => {
+      if (!oldPoint) return nextPoint;
+
+      const distance = liveDistance(oldPoint, nextPoint);
+      const k = distance > 0.035
+        ? 0.985
+        : distance > 0.012
+          ? 0.94
+          : 0.82;
+
+      return {
+        x: oldPoint.x + (nextPoint.x - oldPoint.x) * k,
+        y: oldPoint.y + (nextPoint.y - oldPoint.y) * k
+      };
+    };
+
+    newPipes.push({
+      key,
+      a: smooth(previous?.a, nextA),
+      b: smooth(previous?.b, nextB),
+      status: visual.livePipeStatuses.get(key) || previous?.status || "green"
+    });
+  }
+
+  visual.pipes = newPipes;
+  visual.liveLandmarks = landmarks;
 }
 
 function smoothNumber(oldValue, newValue, factor) {
@@ -1360,14 +1541,29 @@ function applyRedPipeFallback(data) {
   }
 }
 
-function drawPoseResult(data) {
+function drawPoseResult(data, requestLandmarks) {
   const canvas = ensureOverlay();
 
   if (!canvas) return;
 
   resizeOverlay();
 
-  smoothPipes(data.pipes || []);
+  const video = $('#cameraVideo');
+  const width = video?.videoWidth || 1280;
+  const height = video?.videoHeight || 720;
+
+  setLivePipeStatusesFromApi(
+    data,
+    requestLandmarks || visual.liveLandmarks,
+    width,
+    height
+  );
+
+  // Rebuild from the newest camera landmarks, using the new API status map.
+  buildLivePipesFromLandmarks(
+    requestLandmarks || visual.liveLandmarks
+  );
+
   smoothTargets(data.targets || []);
   applyRedPipeFallback(data);
 
@@ -1730,18 +1926,15 @@ async function setupBrowserPose() {
     minTrackingConfidence: 0.55
   });
 
-  browserPose.onResults(async (results) => {
+  browserPose.onResults((results) => {
     if (!results.poseLandmarks || results.poseLandmarks.length < 33) {
       visual.pipes = [];
       visual.targets = [];
+      visual.liveLandmarks = [];
+      visual.livePipeStatuses.clear();
       setCoachStatus('BODY NOT DETECTED', 'var(--red)');
       return;
     }
-
-    // One analysis request per delivered camera frame, subject only to the
-    // existing no-overlap guard. Slower cameras naturally produce fewer
-    // requests; faster cameras can produce more until the API is busy.
-    if (browserPoseBusy) return;
 
     const video = $('#cameraVideo');
     const width = video?.videoWidth || 1280;
@@ -1755,7 +1948,15 @@ async function setupBrowserPose() {
       presence: Number(lm.presence ?? 1)
     }));
 
-    await sendLandmarksToAPI(landmarks, width, height);
+    // CRITICAL LOW-LATENCY PATH:
+    // update the pipes from the newest camera result immediately.
+    buildLivePipesFromLandmarks(landmarks);
+
+    // The network/API path is intentionally independent. A slow hosted API
+    // must never delay camera rendering.
+    if (!browserPoseBusy) {
+      void sendLandmarksToAPI(landmarks, width, height);
+    }
   });
 
   browserPoseReady = true;
@@ -1790,10 +1991,11 @@ async function sendLandmarksToAPI(landmarks, width, height) {
     if (serial !== requestSerial) return;
 
     if (data.detected) {
-      drawPoseResult(data);
+      drawPoseResult(data, landmarks);
       updateFormUI(data);
     } else {
-      visual.pipes = [];
+      // Do not clear the live camera pipes here. A late/empty API response
+      // must not erase the newest visible camera tracking.
       visual.targets = [];
       setCoachStatus('BODY NOT DETECTED', 'var(--red)');
     }
@@ -1832,12 +2034,15 @@ function startPoseLoop() {
 
   // Best path: schedule exactly when a new decoded camera frame arrives.
   if ("requestVideoFrameCallback" in video) {
-    const onVideoFrame = async () => {
+    const onVideoFrame = () => {
       if (!cameraStream) return;
-      await processBrowserPose();
-      if (cameraStream) {
-        poseTimer = video.requestVideoFrameCallback(onVideoFrame);
-      }
+
+      // Schedule the NEXT decoded camera frame immediately.
+      // Pose inference may take longer than one frame; the camera loop itself
+      // must never wait on the network/API or inference promise.
+      poseTimer = video.requestVideoFrameCallback(onVideoFrame);
+
+      void processBrowserPose();
     };
 
     poseTimer = video.requestVideoFrameCallback(onVideoFrame);
@@ -1856,7 +2061,7 @@ function startPoseLoop() {
       currentVideo.currentTime !== lastVideoTime
     ) {
       lastVideoTime = currentVideo.currentTime;
-      await processBrowserPose();
+      void processBrowserPose();
     }
 
     poseTimer = requestAnimationFrame(tick);
@@ -1900,6 +2105,8 @@ function stopFormSession() {
   }
 
   browserPoseBusy = false;
+  visual.liveLandmarks = [];
+  visual.livePipeStatuses.clear();
   requestSerial++;
 }
 
