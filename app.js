@@ -66,8 +66,21 @@ let lastRawReps = 0;
 
 const state = {
   goal: "muscle gain",
-  equipment: ["Bodyweight"]
+  equipment: [],
+  split: "auto"
 };
+
+const workoutMemory = {
+  favorite_exercises: [],
+  disliked_exercises: [],
+  avoid_exercises: [],
+  notes: []
+};
+
+let activeWorkoutProfile = null;
+let activeWorkoutPlan = null;
+let savedWorkoutCache = [];
+let activeSavedWorkoutId = null;
 
 // PRE-MAPPED REFERENCE DEMOS — UI ONLY.
 // Automatic YouTube fallback is also UI-only: form/model/camera logic is untouched.
@@ -2656,36 +2669,26 @@ function bindFormChoices() {
   $$("#equipmentChoices .choice")
     .forEach(btn => {
       btn.onclick = () => {
-        const value =
-          btn.dataset.value;
+        const value = btn.dataset.value;
 
-        if (
-          state.equipment
-            .includes(value)
-        ) {
-          if (
-            state.equipment.length > 1
-          ) {
-            state.equipment =
-              state.equipment.filter(
-                x => x !== value
-              );
-
-            btn.classList.remove(
-              "selected"
-            );
-          }
-        } else {
-          state.equipment.push(
-            value
-          );
-
-          btn.classList.add(
-            "selected"
-          );
+        if (state.equipment.includes(value)) {
+          state.equipment = state.equipment.filter(x => x !== value);
+          btn.classList.remove("selected");
+          return;
         }
+
+        state.equipment.push(value);
+        btn.classList.add("selected");
       };
     });
+
+  const splitSelect = $("#workoutSplit");
+  if (splitSelect) {
+    splitSelect.value = state.split;
+    splitSelect.addEventListener("change", () => {
+      state.split = splitSelect.value;
+    });
+  }
 
   $("#recommendForm")
     .addEventListener(
@@ -2694,134 +2697,546 @@ function bindFormChoices() {
     );
 }
 
+async function loadWorkoutMemory() {
+  try {
+    const response = await fetch("/api/workout/profile", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    Object.assign(workoutMemory, data.profile || {});
+  } catch (_) {}
+}
+
+async function loadSavedWorkouts() {
+  try {
+    const response = await fetch("/api/workout/saved", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    savedWorkoutCache = data.saved || [];
+    renderSavedWorkouts();
+  } catch (_) {}
+}
+
+function workoutIdIsIn(key, exerciseId) {
+  return (workoutMemory[key] || []).map(String).some(
+    x => x.toLowerCase() === String(exerciseId || "").toLowerCase()
+  );
+}
+
+function workoutActionButton(exercise, action, label) {
+  const id = escapeHtml(exercise.exercise_id || "");
+  const active =
+    action === "favorite" && workoutIdIsIn("favorite_exercises", exercise.exercise_id)
+      ? " active"
+      : action === "dislike" && workoutIdIsIn("disliked_exercises", exercise.exercise_id)
+        ? " active"
+        : "";
+  return `<button type="button" class="workout-action-btn${active}" data-workout-action="${action}" data-exercise-id="${id}">${label}</button>`;
+}
+
+function workoutClonePlan(plan) {
+  return JSON.parse(JSON.stringify(plan || {}));
+}
+
+function workoutCandidateForReplacement(exerciseId, dayIndex, itemIndex) {
+  if (!activeWorkoutPlan?.days?.length) return null;
+  const current = activeWorkoutPlan.days[dayIndex]?.exercises?.[itemIndex];
+  if (!current) return null;
+
+  const used = new Set(
+    activeWorkoutPlan.days.flatMap(day =>
+      (day.exercises || []).map(ex => String(ex.exercise_id || "").toLowerCase())
+    )
+  );
+
+  const candidates = Object.entries(
+    Object.fromEntries(exercises.map(ex => [ex.id, ex]))
+  ).map(([id, ex]) => ({ id, ex }));
+
+  const profileEquipment = new Set(
+    (activeWorkoutProfile?.equipment || []).map(x => String(x).toLowerCase())
+  );
+
+  const targetMuscles = new Set(
+    (current.primary_muscles || []).map(x => String(x).toLowerCase())
+  );
+
+  candidates.sort((a, b) => {
+    const score = item => {
+      if (item.id === exerciseId) return -999;
+      if (used.has(String(item.id).toLowerCase())) return -30;
+      if (workoutIdIsIn("avoid_exercises", item.id)) return -1000;
+      if (workoutIdIsIn("disliked_exercises", item.id)) return -250;
+
+      let s = 0;
+      const equipment = (item.ex.equipment || []).map(x => String(x).toLowerCase());
+      const selectedEquipment = profileEquipment;
+      const canon = x => ({
+        "dumbbell": "dumbbells",
+        "dumbbells": "dumbbells",
+        "barbell": "barbell",
+        "resistance bands": "resistance band",
+        "resistance band": "resistance band",
+        "body weight": "bodyweight",
+        "bodyweight": "bodyweight"
+      }[x] || x);
+      const normalizedEquipment = new Set(equipment.map(canon));
+      const compatible = normalizedEquipment.size > 0 &&
+        [...normalizedEquipment].some(x => selectedEquipment.has(x)) &&
+        (normalizedEquipment.has("bodyweight") ? selectedEquipment.has("bodyweight") || normalizedEquipment.size > 1 : true);
+      if (compatible) s += 12; else s -= 80;
+
+      const muscles = (item.ex.primary_muscles || []).map(x => String(x).toLowerCase());
+      if (muscles.some(x => targetMuscles.has(x))) s += 18;
+
+      if (workoutIdIsIn("favorite_exercises", item.id)) s += 15;
+      if (item.ex.form_check_status === "READY") s += 4;
+      return s;
+    };
+    return score(b) - score(a);
+  });
+
+  const candidate = candidates.find(x =>
+    x.id !== exerciseId &&
+    !used.has(String(x.id).toLowerCase()) &&
+    !workoutIdIsIn("avoid_exercises", x.id) &&
+    !workoutIdIsIn("disliked_exercises", x.id)
+  );
+
+  if (!candidate) return null;
+
+  const currentEx = current;
+  return {
+    order: currentEx.order,
+    exercise_id: candidate.id,
+    exercise: candidate.ex.name || candidate.id,
+    category: candidate.ex.category,
+    primary_muscles: candidate.ex.primary_muscles || [],
+    sets: currentEx.sets,
+    reps: currentEx.reps,
+    rest_seconds: currentEx.rest_seconds,
+    difficulty: candidate.ex.difficulty,
+    equipment: candidate.ex.equipment || [],
+    camera_view: candidate.ex.recommended_views || [],
+    form_check_status: candidate.ex.form_check_status || "COMING_SOON",
+    coaching: candidate.ex.coaching || [],
+    score: 0
+  };
+}
+
+function renderSavedWorkouts() {
+  const mount = $("#savedWorkoutList");
+  if (!mount) return;
+
+  if (!savedWorkoutCache.length) {
+    mount.innerHTML = `<div class="saved-workout-empty">No saved workouts yet. Build a plan and save your favorite.</div>`;
+    return;
+  }
+
+  mount.innerHTML = savedWorkoutCache.map(item => `
+    <div class="saved-workout-item" data-saved-workout-id="${Number(item.id)}">
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <small>${item.is_favorite ? "★ Favorite" : "Saved"} • ${escapeHtml(String(item.plan?.days_per_week || ""))} days/week</small>
+      </div>
+      <div class="saved-workout-actions">
+        <button type="button" class="ghost-btn" data-saved-workout-action="open">Open</button>
+        <button type="button" class="ghost-btn danger" data-saved-workout-action="delete">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderWorkoutPlan() {
+  const result = $("#planResult");
+  if (!result || !activeWorkoutPlan) return;
+
+  result.innerHTML = `
+    <div class="workout-memory-banner">
+      <div>
+        <span class="eyebrow">FORMFIT WORKOUT MEMORY</span>
+        <strong>${workoutMemory.favorite_exercises.length || workoutMemory.disliked_exercises.length
+          ? "Your preferences are being used"
+          : "Ready to learn your preferences"}</strong>
+      </div>
+      <small>Favorites, dislikes and feedback improve future plans.</small>
+    </div>
+
+    ${(activeWorkoutPlan.days || []).map((day, dayIndex) => `
+      <div class="day-card">
+        <div class="workout-day-head">
+          <div>
+            <h3>Day ${day.day} — ${escapeHtml(day.name)}</h3>
+            <small style="color:var(--muted)">${day.warmup_minutes || 5} min warm-up</small>
+          </div>
+          <span class="badge">${(day.exercises || []).length} exercises</span>
+        </div>
+
+        ${(day.exercises || []).map((ex, itemIndex) => `
+          <div class="plan-ex workout-plan-ex" data-plan-exercise="${escapeHtml(ex.exercise_id || "")}">
+            <div class="workout-plan-main">
+              <div class="workout-order">${ex.order}.</div>
+              <div>
+                <strong>${escapeHtml(ex.exercise)}</strong>
+                <small>${escapeHtml((ex.primary_muscles || []).join(" • "))}</small>
+              </div>
+            </div>
+
+            <span class="badge">${escapeHtml(ex.form_check_status || "LIBRARY")}</span>
+
+            <div class="workout-prescription">
+              <label>Sets <input type="number" min="1" max="8" value="${Number(ex.sets || 1)}" data-workout-field="sets" data-day-index="${dayIndex}" data-item-index="${itemIndex}"></label>
+              <label>Reps <input type="text" value="${escapeHtml(ex.reps || "")}" data-workout-field="reps" data-day-index="${dayIndex}" data-item-index="${itemIndex}"></label>
+              <label>Rest <input type="number" min="0" max="600" value="${Number(ex.rest_seconds || 0)}" data-workout-field="rest" data-day-index="${dayIndex}" data-item-index="${itemIndex}">s</label>
+              <button type="button" class="ghost-btn" data-workout-action="apply-edit" data-day-index="${dayIndex}" data-item-index="${itemIndex}">Apply</button>
+            </div>
+
+            <div class="workout-action-row">
+              ${workoutActionButton(ex, "favorite", "♥ Favorite")}
+              ${workoutActionButton(ex, "dislike", "Not for me")}
+              <button type="button" class="workout-action-btn" data-workout-action="replace" data-exercise-id="${escapeHtml(ex.exercise_id || "")}" data-day-index="${dayIndex}" data-item-index="${itemIndex}">↻ Replace</button>
+              <button type="button" class="workout-action-btn" data-workout-action="comment" data-exercise-id="${escapeHtml(ex.exercise_id || "")}">💬 Comment</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `).join("")}
+
+    <div class="workout-save-card">
+      <div>
+        <span class="eyebrow">SAVE YOUR TRAINING</span>
+        <h3>Keep this plan for later</h3>
+        <p>Save the current edited workout to your personal library.</p>
+      </div>
+      <div class="workout-save-actions">
+        <button type="button" class="primary-btn" data-workout-action="save">${activeSavedWorkoutId ? "✓ Save changes" : "♡ Save workout"}</button>
+        <button type="button" class="ghost-btn" data-workout-action="favorite-save">★ Save as favorite copy</button>
+      </div>
+    </div>
+
+    <div class="workout-feedback-box">
+      <label for="workoutPlanComment">TEACH FORMFIT — COMMENT ON THIS WORKOUT</label>
+      <textarea id="workoutPlanComment" placeholder="e.g. I love push-ups, but I don't like lunges. Keep workouts under 45 minutes."></textarea>
+      <div class="workout-feedback-actions">
+        <button type="button" class="primary-btn" data-workout-action="comment-plan">Save feedback</button>
+      </div>
+    </div>
+
+    <div class="saved-workout-section">
+      <div class="section-mini-head">
+        <div>
+          <span class="eyebrow">MY SAVED WORKOUTS</span>
+          <h3>Personal training library</h3>
+        </div>
+        <button type="button" class="ghost-btn" data-workout-action="refresh-saved">Refresh</button>
+      </div>
+      <div id="savedWorkoutList"></div>
+    </div>
+  `;
+
+  result.querySelectorAll("[data-plan-exercise]").forEach(item => {
+    item.addEventListener("click", async event => {
+      if (event.target.closest("button,input")) return;
+      const exerciseId = item.dataset.planExercise;
+      if (exerciseId && typeof selectExercise === "function") {
+        await selectExercise(exerciseId);
+      }
+    });
+  });
+
+  renderSavedWorkouts();
+}
+
+async function sendWorkoutFeedback(exerciseId, action, comment = "") {
+  try {
+    const response = await fetch("/api/workout/feedback", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        exercise_id: exerciseId || "general",
+        action,
+        comment
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to save workout feedback");
+    }
+    Object.assign(workoutMemory, data.profile || {});
+    return true;
+  } catch (error) {
+    console.error("FORMFIT workout feedback:", error);
+    alert(error.message || "Unable to save workout feedback");
+    return false;
+  }
+}
+
+function applyWorkoutEdit(dayIndex, itemIndex) {
+  const day = activeWorkoutPlan?.days?.[dayIndex];
+  const item = day?.exercises?.[itemIndex];
+  if (!item) return false;
+
+  const setInput = $(`input[data-workout-field="sets"][data-day-index="${dayIndex}"][data-item-index="${itemIndex}"]`);
+  const repsInput = $(`input[data-workout-field="reps"][data-day-index="${dayIndex}"][data-item-index="${itemIndex}"]`);
+  const restInput = $(`input[data-workout-field="rest"][data-day-index="${dayIndex}"][data-item-index="${itemIndex}"]`);
+
+  const sets = Number(setInput?.value);
+  const rest = Number(restInput?.value);
+  if (!Number.isFinite(sets) || sets < 1 || sets > 8) {
+    alert("Sets must be between 1 and 8.");
+    return false;
+  }
+  if (!Number.isFinite(rest) || rest < 0 || rest > 600) {
+    alert("Rest must be between 0 and 600 seconds.");
+    return false;
+  }
+
+  item.sets = Math.round(sets);
+  item.reps = String(repsInput?.value || "").trim().slice(0, 30) || item.reps;
+  item.rest_seconds = Math.round(rest);
+  return true;
+}
+
+async function saveCurrentWorkoutPlan(isFavorite = false) {
+  if (!activeWorkoutPlan) return false;
+
+  const defaultName = activeSavedWorkoutId
+    ? (savedWorkoutCache.find(x => Number(x.id) === Number(activeSavedWorkoutId))?.name || "My Saved Workout")
+    : (isFavorite ? "My Favorite Workout" : "My Saved Workout");
+
+  const name = prompt("Name this workout", defaultName);
+  if (!name) return false;
+
+  const method = (!isFavorite && activeSavedWorkoutId) ? "PUT" : "POST";
+  const url = method === "PUT"
+    ? `/api/workout/saved/${Number(activeSavedWorkoutId)}`
+    : "/api/workout/saved";
+
+  try {
+    const response = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        name,
+        plan: activeWorkoutPlan,
+        is_favorite: isFavorite
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to save workout");
+
+    if (method === "POST") {
+      activeSavedWorkoutId = Number(data.id);
+    }
+
+    await loadSavedWorkouts();
+    renderWorkoutPlan();
+    return true;
+  } catch (error) {
+    console.error("FORMFIT saved workout:", error);
+    alert(error.message || "Unable to save workout");
+    return false;
+  }
+}
+
+async function openSavedWorkout(id) {
+  const item = savedWorkoutCache.find(x => Number(x.id) === Number(id));
+  if (!item?.plan) return;
+  activeSavedWorkoutId = Number(item.id);
+  activeWorkoutPlan = workoutClonePlan(item.plan);
+  activeWorkoutProfile = activeWorkoutPlan.profile || activeWorkoutProfile;
+  renderWorkoutPlan();
+  $("#recommendView")?.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+async function deleteSavedWorkout(id) {
+  if (!confirm("Delete this saved workout?")) return;
+  try {
+    const response = await fetch(`/api/workout/saved/${Number(id)}`, {
+      method: "DELETE",
+      credentials: "same-origin"
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to delete workout");
+    await loadSavedWorkouts();
+  } catch (error) {
+    alert(error.message || "Unable to delete workout");
+  }
+}
+
+async function handleWorkoutPlanAction(event) {
+  const el = event.target.closest("[data-workout-action]");
+  if (!el) return;
+
+  const action = el.dataset.workoutAction;
+  const exerciseId = el.dataset.exerciseId || "";
+  const dayIndex = Number(el.dataset.dayIndex);
+  const itemIndex = Number(el.dataset.itemIndex);
+
+  if (action === "favorite" || action === "dislike") {
+    const targetList = action === "favorite" ? "favorite_exercises" : "disliked_exercises";
+    const otherList = action === "favorite" ? "disliked_exercises" : "favorite_exercises";
+    const already = workoutIdIsIn(targetList, exerciseId);
+
+    if (already) {
+      workoutMemory[targetList] = (workoutMemory[targetList] || []).filter(
+        x => String(x).toLowerCase() !== String(exerciseId).toLowerCase()
+      );
+    } else {
+      workoutMemory[targetList] = [...(workoutMemory[targetList] || []), exerciseId];
+      workoutMemory[otherList] = (workoutMemory[otherList] || []).filter(
+        x => String(x).toLowerCase() !== String(exerciseId).toLowerCase()
+      );
+    }
+
+    await sendWorkoutFeedback(exerciseId, action);
+    const profile = {
+      favorite_exercises: workoutMemory.favorite_exercises,
+      disliked_exercises: workoutMemory.disliked_exercises,
+      avoid_exercises: workoutMemory.avoid_exercises,
+      notes: workoutMemory.notes
+    };
+    await fetch("/api/workout/profile", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(profile)
+    });
+    renderWorkoutPlan();
+    return;
+  }
+
+  if (action === "replace") {
+    const replacement = workoutCandidateForReplacement(exerciseId, dayIndex, itemIndex);
+    if (!replacement) {
+      alert("No suitable replacement is available with your current equipment and preferences.");
+      return;
+    }
+
+    activeWorkoutPlan.days[dayIndex].exercises[itemIndex] = replacement;
+    await sendWorkoutFeedback(exerciseId, "replace");
+    renderWorkoutPlan();
+    return;
+  }
+
+  if (action === "apply-edit") {
+    if (applyWorkoutEdit(dayIndex, itemIndex)) renderWorkoutPlan();
+    return;
+  }
+
+  if (action === "comment") {
+    const comment = prompt("What should FormFit learn about this exercise?");
+    if (!comment?.trim()) return;
+    await sendWorkoutFeedback(exerciseId, "comment", comment.trim());
+    renderWorkoutPlan();
+    return;
+  }
+
+  if (action === "comment-plan") {
+    const comment = $("#workoutPlanComment")?.value?.trim() || "";
+    if (!comment) return;
+    const ok = await sendWorkoutFeedback("", "comment", comment);
+    if (ok) {
+      $("#workoutPlanComment").value = "";
+      renderWorkoutPlan();
+    }
+    return;
+  }
+
+  if (action === "save") {
+    await saveCurrentWorkoutPlan(false);
+    return;
+  }
+
+  if (action === "favorite-save") {
+    await saveCurrentWorkoutPlan(true);
+    return;
+  }
+
+  if (action === "refresh-saved") {
+    await loadSavedWorkouts();
+  }
+}
+
+function bindSavedWorkoutActions() {
+  const list = $("#savedWorkoutList");
+  if (!list || list.dataset.bound === "1") return;
+  list.dataset.bound = "1";
+  list.addEventListener("click", async event => {
+    const button = event.target.closest("[data-saved-workout-action]");
+    const item = event.target.closest("[data-saved-workout-id]");
+    if (!button || !item) return;
+
+    const id = Number(item.dataset.savedWorkoutId);
+    if (button.dataset.savedWorkoutAction === "open") {
+      await openSavedWorkout(id);
+    } else if (button.dataset.savedWorkoutAction === "delete") {
+      await deleteSavedWorkout(id);
+    }
+  });
+}
+
 async function generatePlan(event) {
   event.preventDefault();
 
   const profile = {
     goal: state.goal,
-    experience:
-      $("#experience").value,
-    days_per_week:
-      Number($("#days").value),
-    exercises_per_day:
-      Number($("#perDay").value),
-    equipment:
-      state.equipment,
+    experience: $("#experience").value,
+    days_per_week: Number($("#days").value),
+    exercises_per_day: Number($("#perDay").value),
+    split: state.split || "auto",
+    equipment: state.equipment,
     target_muscles: []
   };
 
-  const result =
-    $("#planResult");
-
-  result.innerHTML =
-    `<div class="day-card">
-      <strong>Building your plan…</strong>
-      <p style="color:var(--muted)">
-        Scoring exercises from the library.
-      </p>
-    </div>`;
-
-  const res =
-    await fetch(
-      "/api/recommend",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-        body:
-          JSON.stringify(profile)
-      }
-    );
-
-  const data =
-    await res.json();
-
-  if (!res.ok) {
-    result.innerHTML =
-      `<div class="day-card">
-        <strong>
-          Could not build plan.
-        </strong>
-        <p>
-          ${escapeHtml(
-            data.error ||
-            "Unknown error"
-          )}
-        </p>
-      </div>`;
-
+  const result = $("#planResult");
+  if (!state.equipment.length) {
+    result.innerHTML = `<div class="day-card"><strong>Select your available equipment first.</strong><p style="color:var(--muted)">Bodyweight is only used when you explicitly select Bodyweight.</p></div>`;
     return;
   }
+  result.innerHTML = `
+    <div class="day-card">
+      <strong>Building your intelligent plan…</strong>
+      <p style="color:var(--muted)">Using your goal, equipment and learned preferences.</p>
+    </div>`;
 
-  result.innerHTML =
-    (data.days || [])
-      .map(day => `
-        <div class="day-card">
-          <h3>
-            Day ${day.day} —
-            ${escapeHtml(day.name)}
-          </h3>
-
-          <small style="color:var(--muted)">
-            5 min warm-up
-          </small>
-
-          ${(day.exercises || [])
-            .map(ex => `
-              <div
-                class="plan-ex"
-                data-plan-exercise="${escapeHtml(ex.exercise_id || "")}"
-                role="button"
-                tabindex="0"
-                title="Open this exercise"
-              >
-                <div>
-                  <strong>
-                    ${ex.order}.
-                    ${escapeHtml(ex.exercise)}
-                  </strong>
-
-                  <small>
-                    ${escapeHtml(
-                      (ex.primary_muscles || [])
-                        .join(" • ")
-                    )}
-                    • ${ex.sets} × ${ex.reps}
-                    • ${ex.rest_seconds}s rest
-                  </small>
-                </div>
-
-                <span class="badge">
-                  ${escapeHtml(
-                    ex.form_check_status || "LIBRARY"
-                  )}
-                </span>
-              </div>
-            `)
-            .join("")}
-        </div>
-      `)
-      .join("");
-
-  // Click/open behavior only: reuse the existing Form Checker selection.
-  result.querySelectorAll("[data-plan-exercise]").forEach(item => {
-    const openExercise = async () => {
-      const exerciseId = item.dataset.planExercise;
-      if (!exerciseId || typeof selectExercise !== "function") return;
-      await selectExercise(exerciseId);
-    };
-
-    item.addEventListener("click", openExercise);
-
-    item.addEventListener("keydown", event => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openExercise();
-      }
+  try {
+    const res = await fetch("/api/recommend", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(profile)
     });
-  });
+
+    const data = await res.json();
+    if (!res.ok) {
+      result.innerHTML = `
+        <div class="day-card">
+          <strong>Could not build plan.</strong>
+          <p>${escapeHtml(data.error || "Unknown error")}</p>
+        </div>`;
+      return;
+    }
+
+    activeSavedWorkoutId = null;
+    activeWorkoutProfile = {...profile, ...(data.profile || {})};
+    activeWorkoutPlan = workoutClonePlan(data);
+    renderWorkoutPlan();
+  } catch (error) {
+    console.error("FORMFIT workout recommendation:", error);
+    result.innerHTML = `
+      <div class="day-card">
+        <strong>Could not build plan.</strong>
+        <p>Please try again.</p>
+      </div>`;
+  }
 }
 
 function escapeHtml(value) {
@@ -2840,6 +3255,14 @@ document.addEventListener(
 bindInternalBackNavigation();
   bindMealPlan();
     bindFormChoices();
+
+    const planResult = $("#planResult");
+    if (planResult) {
+      planResult.addEventListener("click", handleWorkoutPlanAction);
+    }
+
+    await loadWorkoutMemory();
+    await loadSavedWorkouts();
 
     $("#searchInput")
       .addEventListener(
