@@ -1153,18 +1153,15 @@ function smoothPoint(oldPoint, newPoint, factor) {
   const dy = newPoint.y - oldPoint.y;
   const distance = Math.hypot(dx, dy);
 
-  // Balanced trainer-style smoothing:
-  // - fast movement follows quickly without a long trailing tail
-  // - normal movement stays stable
-  // - tiny landmark jitter is visibly filtered
-  // These values affect rendering only.
+  // Responsive on fast movement, more stable on small landmark jitter.
+  // These values only affect rendering; they do not change pose decisions.
   const adaptive = distance > 0.055
-    ? 0.88
+    ? 0.998
     : distance > 0.025
-      ? 0.82
-      : 0.74;
+      ? 0.985
+      : 0.96;
 
-  const k = Math.min(0.92, Math.max(factor, adaptive));
+  const k = Math.max(factor, adaptive);
 
   return {
     x: smoothNumber(oldPoint.x, newPoint.x, k),
@@ -1185,8 +1182,8 @@ function pipeSegmentDistance(a, b, x, y) {
 }
 
 function smoothPipes(newPipes) {
-  // Match segments by their geometry. Rendering is smoothed only;
-  // analysis/status/reps remain untouched.
+  // Match segments by their geometry, never by array index. If a low-
+  // confidence joint disappears, the remaining pipe order can change.
   const factor = 0.78;
   const oldPipes = visual.pipes || [];
   const used = new Set();
@@ -1213,10 +1210,16 @@ function smoothPipes(newPipes) {
 
     if (bestIndex >= 0 && old) used.add(bestIndex);
 
+    const normalizedStatus = String(
+      next?.status ?? "green"
+    ).trim().toLowerCase();
+
     result.push({
       a: smoothPoint(old?.a, next.a, factor),
       b: smoothPoint(old?.b, next.b, factor),
-      status: next.status
+      status: ["green", "yellow", "red"].includes(normalizedStatus)
+        ? normalizedStatus
+        : "green"
     });
   }
 
@@ -1266,6 +1269,97 @@ function smoothTargets(newTargets) {
     });
 }
 
+
+function applyRedPipeFallback(data) {
+  if (String(data?.status || "").toLowerCase() !== "red") {
+    return;
+  }
+
+  if (!Array.isArray(visual.pipes) || !visual.pipes.length) {
+    return;
+  }
+
+  const msg = String(data?.message || "").toUpperCase();
+  const targets = Array.isArray(data?.targets)
+    ? data.targets
+    : [];
+
+  const targetLabels = targets
+    .map(target => String(target?.[2] ?? target?.label ?? "").toUpperCase());
+
+  const hasAnyRed = visual.pipes.some(
+    pipe => String(pipe?.status || "").toLowerCase() === "red"
+  );
+
+  // Never overwrite a pipe color when the API already supplied an explicit
+  // red pipe. This fallback only repairs missing red visualization.
+  if (hasAnyRed) return;
+
+  const exercise = String(
+    data?.exercise || currentExercise?.id || ""
+  ).toLowerCase();
+
+  const isBothArmFailure =
+    msg.includes("BOTH ARMS") ||
+    msg.includes("RAISE BOTH ARMS") ||
+    msg.includes("PRESS BOTH ARMS") ||
+    msg.includes("BOTH SIDES EVEN") ||
+    targetLabels.some(label =>
+      label.includes("LEFT ELBOW") && targetLabels.some(
+        other => other.includes("RIGHT ELBOW")
+      )
+    );
+
+  const isLegFailure =
+    msg.includes("BOTH LEGS") ||
+    msg.includes("KNEE ALIGN") ||
+    msg.includes("KEEP BOTH KNEES") ||
+    targetLabels.some(label =>
+      label.includes("LEFT KNEE") && targetLabels.some(
+        other => other.includes("RIGHT KNEE")
+      )
+    );
+
+  if (
+    isBothArmFailure &&
+    [
+      "bicep_curls",
+      "hammer_curl",
+      "shoulder_press",
+      "lateral_shoulder_raises",
+      "front_raise",
+      "tricep_extension",
+      "bench_press",
+      "incline_dumbbell_press",
+      "decline_bench_press",
+      "incline_bench_press",
+      "dumbbell_bench_press",
+      "close_grip_bench_press",
+      "chest_press_machine",
+      "chest_fly",
+      "cable_crossover",
+      "low_cable_crossover"
+    ].includes(exercise)
+  ) {
+    visual.pipes = visual.pipes.map(pipe => ({
+      ...pipe,
+      status: "red"
+    }));
+  }
+
+  if (
+    isLegFailure &&
+    ["squat", "lunges", "reverse_lunge", "step_up", "calf_raise"].includes(
+      exercise
+    )
+  ) {
+    visual.pipes = visual.pipes.map(pipe => ({
+      ...pipe,
+      status: "red"
+    }));
+  }
+}
+
 function drawPoseResult(data) {
   const canvas = ensureOverlay();
 
@@ -1275,6 +1369,7 @@ function drawPoseResult(data) {
 
   smoothPipes(data.pipes || []);
   smoothTargets(data.targets || []);
+  applyRedPipeFallback(data);
 
   visual.score = data.score ?? visual.score;
 
