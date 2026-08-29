@@ -2,7 +2,6 @@
 let exercises = [];
 let currentExercise = null;
 let cameraStream = null;
-let resumeCameraAfterSave = false;
 
 let poseTimer = null;
 let frameCanvas = null;
@@ -14,11 +13,12 @@ let requestSerial = 0;
 let browserPose = null;
 let browserPoseReady = false;
 let browserPoseBusy = false;
-
-// Adaptive camera-rate mode:
-// There is intentionally NO fixed 30/60 FPS timer here. Browser MediaPipe
-// receives frames from the actual <video> stream, so the analysis follows
-// the camera's delivered frame rate.
+let lastPoseSend = 0;
+let poseApiTimer = null;
+let latestPoseLandmarks = null;
+let latestPoseWidth = 1280;
+let latestPoseHeight = 720;
+const POSE_SEND_INTERVAL = 100; // ~10 FPS API decisions; camera stays independent
 
 
 // ------------------------------------------------------------
@@ -41,9 +41,10 @@ const visual = {
 let formClockTimer = null;
 let formStartTime = 0;
 
-// REP DISPLAY:
-// Backend RepCounter is authoritative. GREEN and YELLOW completed cycles
-// are valid repetitions; RED is the hard rejection state.
+// FORM-GATED REP DISPLAY:
+// The backend can report movement reps, but the UI only accepts a new rep
+// when the current form decision is GREEN. This keeps the existing rep
+// engine untouched and gates only the accepted/displayed count.
 let acceptedReps = 0;
 let lastRawReps = 0;
 
@@ -175,9 +176,8 @@ let referencePlayerExerciseId = "";
 let referenceCandidates = [];
 let referenceCandidateIndex = -1;
 let youtubeApiPromise = null;
-let referenceProbeTimer = null;
+let referenceFallbackTimer = null;
 let referenceLoadSerial = 0;
-let referenceProbeHost = null;
 
 function dedupeVideoCandidates(items) {
   const seen = new Set();
@@ -192,35 +192,49 @@ function getReferenceCandidates(exercise) {
   const primary = PREMAPPED_DEMOS[exercise?.id];
   const poolName = VIDEO_POOL_BY_EXERCISE[exercise?.id];
   const pool = VIDEO_FALLBACK_POOLS[poolName] || [];
-  return dedupeVideoCandidates([primary, ...pool]);
+
+  // Primary always gets first chance. Fall back only after a real player error.
+  return dedupeVideoCandidates([
+    primary,
+    ...pool
+  ]);
 }
 
 function loadYouTubeIframeAPI() {
   if (window.YT && typeof window.YT.Player === "function") {
     return Promise.resolve(window.YT);
   }
+
   if (youtubeApiPromise) return youtubeApiPromise;
 
   youtubeApiPromise = new Promise(resolve => {
     const finish = () => resolve(
-      window.YT && typeof window.YT.Player === "function" ? window.YT : null
+      window.YT && typeof window.YT.Player === "function"
+        ? window.YT
+        : null
     );
+
     const previous = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
-      try { if (typeof previous === "function") previous(); } catch (_) {}
+      try {
+        if (typeof previous === "function") previous();
+      } catch (_) {}
       finish();
     };
+
     const existing = document.querySelector('script[data-formfit-youtube="1"]');
     if (!existing) {
-      const script = document.createElement("script");
-      script.src = "https://www.youtube.com/iframe_api";
-      script.async = true;
-      script.dataset.formfitYoutube = "1";
-      script.onerror = finish;
-      document.head.appendChild(script);
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.async = true;
+      s.dataset.formfitYoutube = "1";
+      s.onerror = finish;
+      document.head.appendChild(s);
     }
+
     setTimeout(finish, 8000);
   });
+
   return youtubeApiPromise;
 }
 
@@ -229,99 +243,95 @@ function setReferenceFrameFallbackMessage(text) {
   if (source) source.textContent = text;
 }
 
-function destroyReferenceProbe() {
-  if (referenceProbeTimer) {
-    clearTimeout(referenceProbeTimer);
-    referenceProbeTimer = null;
-  }
-  if (referencePlayer && typeof referencePlayer.destroy === "function") {
-    try { referencePlayer.destroy(); } catch (_) {}
-  }
-  referencePlayer = null;
-}
-
-function ensureReferenceProbeHost() {
-  if (referenceProbeHost) return referenceProbeHost;
-  referenceProbeHost = document.createElement("div");
-  referenceProbeHost.id = "formfit-reference-probe";
-  referenceProbeHost.setAttribute("aria-hidden", "true");
-  referenceProbeHost.style.position = "fixed";
-  referenceProbeHost.style.width = "1px";
-  referenceProbeHost.style.height = "1px";
-  referenceProbeHost.style.left = "-10000px";
-  referenceProbeHost.style.top = "-10000px";
-  referenceProbeHost.style.opacity = "0";
-  referenceProbeHost.style.pointerEvents = "none";
-  referenceProbeHost.style.overflow = "hidden";
-  document.body.appendChild(referenceProbeHost);
-  return referenceProbeHost;
-}
-
 function loadReferenceCandidate(index) {
   const iframe = $("#premappedDemoFrameVideo");
   const title = $("#premappedDemoTitle");
   if (!iframe || !title || !currentExercise) return;
 
-  destroyReferenceProbe();
+  if (referenceFallbackTimer) {
+    clearTimeout(referenceFallbackTimer);
+    referenceFallbackTimer = null;
+  }
 
   if (index >= referenceCandidates.length) {
-    setReferenceFrameFallbackMessage("No playable reference found — Watch on YouTube");
+    setReferenceFrameFallbackMessage("Reference video unavailable — Watch on YouTube");
+    iframe.src =
+      `https://www.youtube.com/embed/${PREMAPPED_DEMOS[currentExercise.id]?.id || ""}` +
+      `?controls=1&rel=0&playsinline=1`;
     return;
   }
 
   referenceCandidateIndex = index;
   const candidate = referenceCandidates[index];
   const loadSerial = ++referenceLoadSerial;
-  const exerciseIdAtStart = currentExercise.id;
+  const exerciseIdAtStart = currentExercise?.id || "";
 
   title.textContent = `${currentExercise.name} Demo`;
   setReferenceFrameFallbackMessage(candidate.source);
 
-  // IMPORTANT: the visible demo stays a plain YouTube iframe.
-  // The API is used only by a hidden probe so it can never blank the UI video.
-  iframe.src =
-    `https://www.youtube-nocookie.com/embed/${candidate.id}` +
-    `?autoplay=1&mute=1&controls=1&rel=0&playsinline=1`;
+  if (referencePlayer && typeof referencePlayer.destroy === "function") {
+    try { referencePlayer.destroy(); } catch (_) {}
+  }
+  referencePlayer = null;
 
-  // Probe this candidate in the background. If YouTube reports an error,
-  // automatically try the next candidate without disturbing the visible iframe.
+  iframe.src = "about:blank";
+
   loadYouTubeIframeAPI().then(YT => {
-    if (!YT || !currentExercise) return;
-    if (loadSerial !== referenceLoadSerial || currentExercise.id !== exerciseIdAtStart) return;
+    if (!YT || !currentExercise) {
+      // API unavailable: retain a normal iframe rather than breaking the demo.
+      iframe.src =
+        `https://www.youtube-nocookie.com/embed/${candidate.id}` +
+        `?autoplay=1&mute=1&controls=1&rel=0&playsinline=1`;
+      return;
+    }
 
-    const host = ensureReferenceProbeHost();
-    host.innerHTML = `<div id="formfit-reference-probe-player"></div>`;
+    // Exercise/candidate may have changed while the API was loading.
+    if (
+      loadSerial !== referenceLoadSerial ||
+      !currentExercise ||
+      currentExercise.id !== exerciseIdAtStart
+    ) {
+      return;
+    }
 
-    referencePlayer = new YT.Player("formfit-reference-probe-player", {
-      width: 1,
-      height: 1,
+    referencePlayerExerciseId = exerciseIdAtStart;
+
+    referencePlayer = new YT.Player(iframe, {
       videoId: candidate.id,
+      host: "https://www.youtube-nocookie.com",
       playerVars: {
-        autoplay: 0,
-        controls: 0,
+        autoplay: 1,
+        mute: 1,
+        controls: 1,
         rel: 0,
-        playsinline: 1
+        playsinline: 1,
+        enablejsapi: 1
       },
       events: {
-        onReady: event => {
-          try { event.target.mute(); } catch (_) {}
-          referenceProbeTimer = setTimeout(() => {
-            if (loadSerial !== referenceLoadSerial) return;
-            try { event.target.stopVideo(); } catch (_) {}
-          }, 2500);
-        },
         onError: event => {
           if (loadSerial !== referenceLoadSerial) return;
-          if (referenceCandidateIndex < referenceCandidates.length - 1) {
-            loadReferenceCandidate(referenceCandidateIndex + 1);
-          } else {
-            setReferenceFrameFallbackMessage("No playable reference found — Watch on YouTube");
+          const code = Number(event?.data);
+          // YouTube iframe/player errors that mean this candidate cannot
+          // be played here: invalid, removed/private, or embedding disabled.
+          if ([2, 5, 100, 101, 150, 153].includes(code)) {
+            if (referenceCandidateIndex < referenceCandidates.length - 1) {
+              loadReferenceCandidate(referenceCandidateIndex + 1);
+            } else {
+              setReferenceFrameFallbackMessage("No embeddable reference found — Watch on YouTube");
+            }
           }
+        },
+        onReady: event => {
+          if (loadSerial !== referenceLoadSerial) return;
+          // Give the player a short grace period. Some embed restrictions
+          // report asynchronously after the player has initialized.
+          try { event.target.mute(); } catch (_) {}
+          referenceFallbackTimer = setTimeout(() => {
+            referenceFallbackTimer = null;
+          }, 2500);
         }
       }
     });
-  }).catch(() => {
-    // Visible direct iframe remains untouched if the API is unavailable.
   });
 }
 
@@ -329,13 +339,13 @@ function setPremappedDemo(exercise) {
   const iframe = $("#premappedDemoFrameVideo");
   const title = $("#premappedDemoTitle");
   const source = $("#premappedDemoSource");
+
   if (!iframe || !title || !source) return;
 
   referenceCandidates = getReferenceCandidates(exercise);
   referenceLoadSerial++;
   referenceCandidateIndex = -1;
   referencePlayerExerciseId = exercise?.id || "";
-  destroyReferenceProbe();
 
   title.textContent = exercise?.name
     ? `${exercise.name} Demo`
@@ -349,6 +359,8 @@ function setPremappedDemo(exercise) {
 
   loadReferenceCandidate(0);
 }
+
+
 
 
 const $ = (s) => document.querySelector(s);
@@ -1024,18 +1036,6 @@ async function selectExercise(id) {
   }
 
   showView("form");
-
-  // When the user just finished a live session, returning to another
-  // exercise should resume the camera automatically. First-time entry keeps
-  // the existing explicit Enable Camera behavior.
-  if (resumeCameraAfterSave) {
-    resumeCameraAfterSave = false;
-    setTimeout(() => {
-      if (currentExercise?.id === ex.id && !cameraStream) {
-        enableCamera();
-      }
-    }, 0);
-  }
 }
 
 
@@ -1153,18 +1153,15 @@ function smoothPoint(oldPoint, newPoint, factor) {
   const dy = newPoint.y - oldPoint.y;
   const distance = Math.hypot(dx, dy);
 
-  // Balanced trainer-style smoothing:
-  // - fast movement follows quickly without a long trailing tail
-  // - normal movement stays stable
-  // - tiny landmark jitter is visibly filtered
-  // These values affect rendering only.
+  // Responsive on fast movement, more stable on small landmark jitter.
+  // These values only affect rendering; they do not change pose decisions.
   const adaptive = distance > 0.055
-    ? 0.88
+    ? 0.92
     : distance > 0.025
-      ? 0.82
-      : 0.74;
+      ? 0.86
+      : 0.78;
 
-  const k = Math.min(0.92, Math.max(factor, adaptive));
+  const k = Math.max(factor, adaptive);
 
   return {
     x: smoothNumber(oldPoint.x, newPoint.x, k),
@@ -1185,8 +1182,8 @@ function pipeSegmentDistance(a, b, x, y) {
 }
 
 function smoothPipes(newPipes) {
-  // Match segments by their geometry. Rendering is smoothed only;
-  // analysis/status/reps remain untouched.
+  // Match segments by their geometry, never by array index. If a low-
+  // confidence joint disappears, the remaining pipe order can change.
   const factor = 0.78;
   const oldPipes = visual.pipes || [];
   const used = new Set();
@@ -1281,10 +1278,13 @@ function drawPoseResult(data) {
   const rawReps = Number(data.reps ?? lastRawReps);
   const currentStatus = data.status || visual.status || "yellow";
 
-  // Backend RepCounter already rejects RED cycles. GREEN and YELLOW
-  // completed cycles are both valid repetitions for the display.
+  // Only accept NEW reps when the evaluated form is green.
   if (rawReps > lastRawReps) {
-    acceptedReps += (rawReps - lastRawReps);
+    if (currentStatus === "green") {
+      acceptedReps += (rawReps - lastRawReps);
+    }
+    // When form is not green, the newly reported backend reps are intentionally
+    // not added to acceptedReps.
   }
 
   lastRawReps = Math.max(lastRawReps, rawReps);
@@ -1635,36 +1635,58 @@ async function setupBrowserPose() {
     minTrackingConfidence: 0.55
   });
 
-  browserPose.onResults(async (results) => {
+  browserPose.onResults((results) => {
     if (!results.poseLandmarks || results.poseLandmarks.length < 33) {
+      latestPoseLandmarks = null;
       visual.pipes = [];
       visual.targets = [];
       setCoachStatus('BODY NOT DETECTED', 'var(--red)');
       return;
     }
 
-    // One analysis request per delivered camera frame, subject only to the
-    // existing no-overlap guard. Slower cameras naturally produce fewer
-    // requests; faster cameras can produce more until the API is busy.
-    if (browserPoseBusy) return;
-
     const video = $('#cameraVideo');
-    const width = video?.videoWidth || 1280;
-    const height = video?.videoHeight || 720;
+    latestPoseWidth = video?.videoWidth || 1280;
+    latestPoseHeight = video?.videoHeight || 720;
 
-    const landmarks = results.poseLandmarks.map((lm) => ({
+    // Keep MediaPipe's callback lightweight. We only retain the newest
+    // landmark frame; a separate low-rate API loop sends the latest frame.
+    latestPoseLandmarks = results.poseLandmarks.map((lm) => ({
       x: Number(lm.x),
       y: Number(lm.y),
       z: Number(lm.z || 0),
       visibility: Number(lm.visibility ?? 1),
       presence: Number(lm.presence ?? 1)
     }));
-
-    await sendLandmarksToAPI(landmarks, width, height);
   });
 
   browserPoseReady = true;
   return true;
+}
+
+async function sendLatestLandmarksToAPI() {
+  if (!latestPoseLandmarks || browserPoseBusy || !currentExercise || !cameraStream) return;
+
+  const landmarks = latestPoseLandmarks;
+  const width = latestPoseWidth;
+  const height = latestPoseHeight;
+
+  latestPoseLandmarks = null;
+  await sendLandmarksToAPI(landmarks, width, height);
+}
+
+function startPoseApiLoop() {
+  if (poseApiTimer) clearInterval(poseApiTimer);
+  poseApiTimer = setInterval(() => {
+    void sendLatestLandmarksToAPI();
+  }, POSE_SEND_INTERVAL);
+}
+
+function stopPoseApiLoop() {
+  if (poseApiTimer) {
+    clearInterval(poseApiTimer);
+    poseApiTimer = null;
+  }
+  latestPoseLandmarks = null;
 }
 
 async function sendLandmarksToAPI(landmarks, width, height) {
@@ -1731,36 +1753,14 @@ async function processBrowserPose() {
 
 function startPoseLoop() {
   stopPoseLoop();
-
-  const video = $('#cameraVideo');
-  if (!video) return;
-
-  // Best path: schedule exactly when a new decoded camera frame arrives.
-  if ("requestVideoFrameCallback" in video) {
-    const onVideoFrame = async () => {
-      if (!cameraStream) return;
-      await processBrowserPose();
-      if (cameraStream) {
-        poseTimer = video.requestVideoFrameCallback(onVideoFrame);
-      }
-    };
-
-    poseTimer = video.requestVideoFrameCallback(onVideoFrame);
-    return;
-  }
-
-  // Compatibility fallback for browsers without requestVideoFrameCallback.
   let lastVideoTime = -1;
+
   const tick = async () => {
     if (!cameraStream) return;
 
-    const currentVideo = $('#cameraVideo');
-    if (
-      currentVideo &&
-      currentVideo.readyState >= 2 &&
-      currentVideo.currentTime !== lastVideoTime
-    ) {
-      lastVideoTime = currentVideo.currentTime;
+    const video = $('#cameraVideo');
+    if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
       await processBrowserPose();
     }
 
@@ -1771,13 +1771,7 @@ function startPoseLoop() {
 }
 
 function stopPoseLoop() {
-  const video = $('#cameraVideo');
-
   if (poseTimer) {
-    // requestVideoFrameCallback IDs are canceled with cancelVideoFrameCallback.
-    if (video && "cancelVideoFrameCallback" in video) {
-      try { video.cancelVideoFrameCallback(poseTimer); } catch (_) {}
-    }
     cancelAnimationFrame(poseTimer);
     poseTimer = null;
   }
@@ -1792,6 +1786,7 @@ function stopFormSession() {
   }
 
   stopPoseLoop();
+  stopPoseApiLoop();
 
   if (cameraStream) {
     cameraStream.getTracks().forEach(track => track.stop());
@@ -1865,20 +1860,11 @@ async function endAndSaveFormSession() {
   }
 
   try {
-    // Remember whether this was a live camera session so the next selected
-    // exercise can resume the camera automatically after a successful save.
-    resumeCameraAfterSave = Boolean(cameraStream);
-
     await saveCurrentFormSession();
     stopFormSession();
 
     currentExercise = null;
     resetVisualState();
-
-    if (button) {
-      button.disabled = false;
-      button.textContent = "✓ End & Save Session";
-    }
 
     const status = $("#coachStatus");
     if (status) {
@@ -1997,9 +1983,7 @@ async function enableCamera() {
         facingMode: 'user',
         width: { ideal: 1280 },
         height: { ideal: 720 },
-        // Ask for smooth/high FPS, but let the browser/camera choose the
-        // supported frame rate. We do not force a fixed FPS.
-        frameRate: { ideal: 60 }
+        frameRate: { ideal: 30, max: 30 }
       },
       audio: false
     });
@@ -2021,6 +2005,7 @@ async function enableCamera() {
     setCoachStatus('AI FORM CHECK RUNNING', 'var(--accent)');
     startFormClock();
     startPoseLoop();
+    startPoseApiLoop();
   } catch (error) {
     console.error(error);
     setCoachStatus('CAMERA / MEDIAPIPE FAILED', 'var(--red)');
