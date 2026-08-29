@@ -805,3 +805,203 @@ nav{display:grid;gap:7px}.nav-item{border:1px solid transparent;background:trans
 .saved-diet-actions{display:flex;gap:7px;flex-wrap:wrap}
 .saved-diet-empty{padding:14px;color:#71888d;font-size:11px;border:1px dashed #29444b;border-radius:12px}
 @media(max-width:700px){.diet-memory-grid{grid-template-columns:1fr}.meal-feedback-row{flex-direction:column;align-items:stretch}.saved-diet-item{align-items:flex-start;flex-direction:column}.saved-diet-actions{width:100%}}
+
+/* ============================================================
+   AI WORKOUT INTELLIGENCE
+   ============================================================ */
+.workout-memory-banner,
+.workout-save-card,
+.workout-feedback-box,
+.saved-workout-section {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(117, 255, 178, 0.14);
+  border-radius: 16px;
+  background: rgba(7, 25, 29, 0.72);
+}
+
+.workout-memory-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.workout-memory-banner strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 15px;
+}
+
+.workout-memory-banner small,
+.workout-save-card p,
+.saved-workout-item small {
+  color: var(--muted);
+}
+
+.workout-day-head,
+.section-mini-head,
+.workout-save-actions,
+.workout-feedback-actions,
+.saved-workout-actions,
+.workout-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workout-day-head,
+.section-mini-head,
+.workout-save-card {
+  justify-content: space-between;
+}
+
+.workout-plan-ex {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.workout-plan-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.workout-order {
+  min-width: 22px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.workout-prescription {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workout-prescription label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.workout-prescription input {
+  width: 72px;
+  min-height: 34px;
+  border: 1px solid rgba(117, 255, 178, 0.14);
+  border-radius: 9px;
+  background: #0b1c20;
+  color: #fff;
+  padding: 0 9px;
+}
+
+.workout-action-row {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+}
+
+.workout-action-btn {
+  border: 1px solid rgba(117, 255, 178, 0.15);
+  border-radius: 999px;
+  background: #0a1d21;
+  color: #c2d4d6;
+  padding: 8px 11px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.workout-action-btn:hover,
+.workout-action-btn.active {
+  border-color: rgba(117, 255, 178, 0.5);
+  color: var(--accent);
+  background: rgba(117, 255, 178, 0.08);
+}
+
+.workout-action-btn:focus-visible,
+.workout-prescription input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.workout-save-card {
+  display: flex;
+  gap: 18px;
+}
+
+.workout-save-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workout-feedback-box textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  margin-top: 10px;
+  border: 1px solid rgba(117, 255, 178, 0.14);
+  border-radius: 12px;
+  background: #08181c;
+  color: #fff;
+  padding: 12px;
+  font: inherit;
+}
+
+.workout-feedback-actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.saved-workout-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(117, 255, 178, 0.08);
+}
+
+.saved-workout-item:first-child {
+  border-top: 0;
+}
+
+.saved-workout-item strong,
+.saved-workout-item small {
+  display: block;
+}
+
+.saved-workout-empty {
+  padding: 14px 0 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 850px) {
+  .workout-memory-banner,
+  .workout-save-card,
+  .saved-workout-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workout-save-actions,
+  .saved-workout-actions {
+    justify-content: flex-start;
+  }
+
+  .workout-plan-ex {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-plan-ex > .badge {
+    justify-self: start;
+  }
+}
+
