@@ -159,6 +159,47 @@ def init_db():
                 CREATE INDEX IF NOT EXISTS idx_history_user_created
                 ON workout_history(user_id, created_at DESC)
             """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS diet_preferences (
+                    user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                    favorite_foods TEXT NOT NULL DEFAULT '[]',
+                    disliked_foods TEXT NOT NULL DEFAULT '[]',
+                    avoid_foods TEXT NOT NULL DEFAULT '[]',
+                    favorite_meals TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS diet_saved_plans (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_diet_saved_user_updated
+                ON diet_saved_plans(user_id, updated_at DESC)
+            """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS diet_feedback (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    food_name TEXT NOT NULL,
+                    meal_key TEXT,
+                    action TEXT NOT NULL,
+                    comment TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_diet_feedback_user_created
+                ON diet_feedback(user_id, created_at DESC)
+            """)
         else:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -188,6 +229,45 @@ def init_db():
 
                 CREATE INDEX IF NOT EXISTS idx_history_user_created
                 ON workout_history(user_id, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS diet_preferences (
+                    user_id INTEGER PRIMARY KEY,
+                    favorite_foods TEXT NOT NULL DEFAULT '[]',
+                    disliked_foods TEXT NOT NULL DEFAULT '[]',
+                    avoid_foods TEXT NOT NULL DEFAULT '[]',
+                    favorite_meals TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS diet_saved_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_diet_saved_user_updated
+                ON diet_saved_plans(user_id, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS diet_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    food_name TEXT NOT NULL,
+                    meal_key TEXT,
+                    action TEXT NOT NULL,
+                    comment TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_diet_feedback_user_created
+                ON diet_feedback(user_id, created_at DESC);
             """)
 
 EXERCISES = load_exercises()
@@ -343,6 +423,263 @@ def me():
         session.clear()
         return jsonify({"authenticated": False})
     return jsonify({"authenticated": True, "user": user_payload(row)})
+
+
+# -----------------------------
+# Personalized diet memory
+# -----------------------------
+def _json_list(value):
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+        except json.JSONDecodeError:
+            pass
+        return [x.strip() for x in value.split(",") if x.strip()]
+    return []
+
+
+def _dedupe(values, limit=40):
+    out = []
+    seen = set()
+    for value in values:
+        item = str(value).strip()
+        key = item.lower()
+        if not item or key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _diet_profile_row(conn):
+    return conn.execute(
+        "SELECT * FROM diet_preferences WHERE user_id = ?",
+        (current_user_id(),),
+    ).fetchone()
+
+
+def _diet_profile_payload(row):
+    if not row:
+        return {
+            "favorite_foods": [],
+            "disliked_foods": [],
+            "avoid_foods": [],
+            "favorite_meals": [],
+            "notes": [],
+        }
+    result = {}
+    for key in ("favorite_foods", "disliked_foods", "avoid_foods", "favorite_meals", "notes"):
+        result[key] = _json_list(row[key])
+    return result
+
+
+def _update_diet_profile(conn, profile):
+    now = datetime.now(timezone.utc).isoformat()
+    fields = {
+        "favorite_foods": _dedupe(_json_list(profile.get("favorite_foods"))),
+        "disliked_foods": _dedupe(_json_list(profile.get("disliked_foods"))),
+        "avoid_foods": _dedupe(_json_list(profile.get("avoid_foods"))),
+        "favorite_meals": _dedupe(_json_list(profile.get("favorite_meals"))),
+        "notes": _dedupe(_json_list(profile.get("notes")), limit=20),
+    }
+    encoded = {k: json.dumps(v, ensure_ascii=False) for k, v in fields.items()}
+    existing = _diet_profile_row(conn)
+    if existing:
+        conn.execute(
+            """UPDATE diet_preferences
+               SET favorite_foods = ?, disliked_foods = ?, avoid_foods = ?,
+                   favorite_meals = ?, notes = ?, updated_at = ?
+               WHERE user_id = ?""",
+            (encoded["favorite_foods"], encoded["disliked_foods"], encoded["avoid_foods"],
+             encoded["favorite_meals"], encoded["notes"], now, current_user_id()),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO diet_preferences
+               (user_id, favorite_foods, disliked_foods, avoid_foods, favorite_meals, notes, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (current_user_id(), encoded["favorite_foods"], encoded["disliked_foods"],
+             encoded["avoid_foods"], encoded["favorite_meals"], encoded["notes"], now),
+        )
+    return fields
+
+
+def _learn_from_diet_comment(comment):
+    text = str(comment or "").strip()
+    lower = text.lower()
+    signals = {"favorite_foods": [], "disliked_foods": [], "avoid_foods": [], "notes": []}
+    if not text:
+        return signals
+    signals["notes"].append(text[:500])
+
+    # Learn independently per food so a comment such as
+    # "I love paneer but I don't like oats" records both signals correctly.
+    foods = [
+        "oats", "poha", "upma", "daliya", "paneer", "tofu", "dal", "rajma", "chole",
+        "rice", "roti", "curd", "milk", "banana", "apple", "guava", "peanuts", "almonds",
+        "eggs", "egg", "chicken", "fish", "soy", "salad", "vegetables", "khichdi"
+    ]
+    dislike_markers = ["don't like", "do not like", "hate", "dislike", "not like", "nahi pasand", "pasand nahi", "pasand nhi"]
+    avoid_markers = ["avoid", "allergy", "allergic", "can't eat", "cannot eat", "nahi kha", "nahi khata", "nahi khati"]
+    like_markers = ["love", "like", "favorite", "favourite", "pasand", "acha laga", "achha laga"]
+
+    for food in foods:
+        pos = lower.find(food)
+        while pos >= 0:
+            context = lower[max(0, pos - 55): min(len(lower), pos + len(food) + 55)]
+            if any(marker in context for marker in avoid_markers):
+                signals["avoid_foods"].append(food)
+            elif any(marker in context for marker in dislike_markers):
+                signals["disliked_foods"].append(food)
+            elif any(marker in context for marker in like_markers):
+                signals["favorite_foods"].append(food)
+            pos = lower.find(food, pos + len(food))
+    return signals
+
+
+@app.get("/api/diet/profile")
+@login_required
+def get_diet_profile():
+    with db() as conn:
+        row = _diet_profile_row(conn)
+    return jsonify({"profile": _diet_profile_payload(row)})
+
+
+@app.put("/api/diet/profile")
+@login_required
+def put_diet_profile():
+    payload = request.get_json(silent=True) or {}
+    with db() as conn:
+        profile = _update_diet_profile(conn, payload)
+    return jsonify({"ok": True, "profile": profile})
+
+
+@app.post("/api/diet/feedback")
+@login_required
+def diet_feedback():
+    payload = request.get_json(silent=True) or {}
+    food_name = str(payload.get("food_name") or "").strip()[:120]
+    action = str(payload.get("action") or "comment").strip().lower()[:30]
+    meal_key = str(payload.get("meal_key") or "").strip()[:40]
+    comment = str(payload.get("comment") or "").strip()[:500]
+    if not food_name and not comment:
+        return jsonify({"error": "Feedback is empty"}), 400
+    if action not in {"favorite", "dislike", "avoid", "comment", "meal_favorite"}:
+        action = "comment"
+
+    with db() as conn:
+        row = _diet_profile_row(conn)
+        profile = _diet_profile_payload(row)
+        if action == "favorite":
+            profile["favorite_foods"].append(food_name)
+            profile["disliked_foods"] = [x for x in profile["disliked_foods"] if x.lower() != food_name.lower()]
+            profile["avoid_foods"] = [x for x in profile["avoid_foods"] if x.lower() != food_name.lower()]
+        elif action == "dislike":
+            profile["disliked_foods"].append(food_name)
+            profile["favorite_foods"] = [x for x in profile["favorite_foods"] if x.lower() != food_name.lower()]
+        elif action == "avoid":
+            profile["avoid_foods"].append(food_name)
+            profile["disliked_foods"] = [x for x in profile["disliked_foods"] if x.lower() != food_name.lower()]
+            profile["favorite_foods"] = [x for x in profile["favorite_foods"] if x.lower() != food_name.lower()]
+        elif action == "meal_favorite" and meal_key:
+            profile["favorite_meals"].append(meal_key)
+
+        learned = _learn_from_diet_comment(comment)
+        for key in ("favorite_foods", "disliked_foods", "avoid_foods", "notes"):
+            profile[key].extend(learned[key])
+
+        profile = _update_diet_profile(conn, profile)
+        conn.execute(
+            """INSERT INTO diet_feedback
+               (user_id, food_name, meal_key, action, comment, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (current_user_id(), food_name or "general", meal_key, action, comment,
+             datetime.now(timezone.utc).isoformat()),
+        )
+    return jsonify({"ok": True, "profile": profile})
+
+
+@app.get("/api/diet/saved")
+@login_required
+def get_saved_diets():
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT id, name, plan_json, is_favorite, created_at, updated_at
+               FROM diet_saved_plans WHERE user_id = ?
+               ORDER BY is_favorite DESC, updated_at DESC LIMIT 50""",
+            (current_user_id(),),
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["plan"] = json.loads(item.pop("plan_json"))
+        except Exception:
+            item["plan"] = None
+        item["is_favorite"] = bool(item.get("is_favorite"))
+        items.append(item)
+    return jsonify({"saved": items})
+
+
+@app.post("/api/diet/saved")
+@login_required
+def save_diet():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "My Favorite Diet").strip()[:120]
+    plan = payload.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Invalid diet plan"}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    with db() as conn:
+        cur = conn.execute(
+            """INSERT INTO diet_saved_plans
+               (user_id, name, plan_json, is_favorite, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""" + (" RETURNING id" if conn.postgres else ""),
+            (current_user_id(), name, json.dumps(plan, ensure_ascii=False), 1 if payload.get("is_favorite") else 0, now, now),
+        )
+        saved_id = inserted_id(cur) if conn.postgres else cur.lastrowid
+    return jsonify({"ok": True, "id": int(saved_id), "name": name, "created_at": now}), 201
+
+
+@app.put("/api/diet/saved/<int:diet_id>")
+@login_required
+def update_saved_diet(diet_id):
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "My Saved Diet").strip()[:120]
+    plan = payload.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Invalid diet plan"}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    with db() as conn:
+        cur = conn.execute(
+            """UPDATE diet_saved_plans
+               SET name = ?, plan_json = ?, is_favorite = ?, updated_at = ?
+               WHERE id = ? AND user_id = ?""",
+            (name, json.dumps(plan, ensure_ascii=False), 1 if payload.get("is_favorite") else 0,
+             now, diet_id, current_user_id()),
+        )
+    if cur.rowcount == 0:
+        return jsonify({"error": "Saved diet not found"}), 404
+    return jsonify({"ok": True, "id": diet_id, "updated_at": now})
+
+
+@app.delete("/api/diet/saved/<int:diet_id>")
+@login_required
+def delete_saved_diet(diet_id):
+    with db() as conn:
+        cur = conn.execute(
+            "DELETE FROM diet_saved_plans WHERE id = ? AND user_id = ?",
+            (diet_id, current_user_id()),
+        )
+    if cur.rowcount == 0:
+        return jsonify({"error": "Saved diet not found"}), 404
+    return jsonify({"ok": True})
 
 
 # -----------------------------

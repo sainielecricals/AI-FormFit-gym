@@ -527,6 +527,18 @@ const mealState = {
   preference: "vegetarian"
 };
 
+const dietMemory = {
+  favorite_foods: [],
+  disliked_foods: [],
+  avoid_foods: [],
+  favorite_meals: [],
+  notes: []
+};
+
+let activeDietPlan = null;
+let activeDietProfile = null;
+let savedDietCache = [];
+
 const MEAL_GOALS = {
   bulking: {
     label: "Bulking",
@@ -716,42 +728,156 @@ function scaleMealPlan(plan, calorieTarget, proteinTarget) {
   }));
 }
 
-function renderMealPlan(profile) {
-  const goal = MEAL_GOALS[profile.goal];
+function dietListHas(list, food) {
+  const name = String(food || "").trim().toLowerCase();
+  return (list || []).some(x => {
+    const value = String(x || "").trim().toLowerCase();
+    return value && (name === value || name.includes(value) || value.includes(name));
+  });
+}
+
+function dietFoodScore(food) {
+  let score = 0;
+  if (dietListHas(dietMemory.favorite_foods, food)) score += 5;
+  if (dietListHas(dietMemory.disliked_foods, food)) score -= 8;
+  if (dietListHas(dietMemory.avoid_foods, food)) score -= 100;
+  return score;
+}
+
+function mealItemFromBase(x) {
+  return {
+    food: x[0],
+    quantity: typeof x[1] === "number" ? x[1] : x[1],
+    unit: x[2],
+    calories: Number(x[3] || 0),
+    protein: Number(x[4] || 0),
+    carbs: Number(x[5] || 0),
+    fat: Number(x[6] || 0),
+    baseQuantity: typeof x[1] === "number" ? x[1] : null
+  };
+}
+
+function chooseDietAlternative(mealKey, currentFood, preference, usedFoods = new Set()) {
+  const source = (MEAL_FOOD[preference]?.[mealKey] || []).map(mealItemFromBase);
+  const all = [...source];
+  const candidates = all.filter(item =>
+    item.food.toLowerCase() !== String(currentFood || "").toLowerCase() &&
+    !usedFoods.has(item.food.toLowerCase()) &&
+    !dietListHas(dietMemory.disliked_foods, item.food) &&
+    !dietListHas(dietMemory.avoid_foods, item.food)
+  );
+
+  candidates.sort((a, b) => dietFoodScore(b.food) - dietFoodScore(a.food));
+  return candidates[0] || null;
+}
+
+function personalizeMealPlan(plan, preference) {
+  const next = plan.map(meal => ({
+    ...meal,
+    items: meal.items.map(item => ({ ...item }))
+  }));
+
+  for (const meal of next) {
+    const used = new Set(meal.items.map(x => String(x.food).toLowerCase()));
+    meal.items = meal.items.map(item => {
+      if (!dietListHas(dietMemory.disliked_foods, item.food) &&
+          !dietListHas(dietMemory.avoid_foods, item.food)) {
+        return item;
+      }
+
+      const replacement = chooseDietAlternative(meal.key, item.food, preference, used);
+      if (!replacement) return item;
+
+      used.delete(String(item.food).toLowerCase());
+      used.add(String(replacement.food).toLowerCase());
+      const scale = typeof replacement.quantity === "number" && replacement.quantity > 0
+        ? (typeof item.quantity === "number" ? item.quantity / replacement.quantity : 1)
+        : 1;
+
+      return {
+        ...replacement,
+        quantity: typeof replacement.quantity === "number"
+          ? round1(replacement.quantity * scale)
+          : replacement.quantity,
+        calories: round0(replacement.calories * scale),
+        protein: round1(replacement.protein * scale),
+        carbs: round1(replacement.carbs * scale),
+        fat: round1(replacement.fat * scale),
+        baseQuantity: replacement.baseQuantity
+      };
+    });
+  }
+
+  // Put stronger favorites first without disturbing the meal structure.
+  for (const meal of next) {
+    meal.items.sort((a, b) => dietFoodScore(b.food) - dietFoodScore(a.food));
+  }
+  return next;
+}
+
+function recalculateDietPlan(plan) {
+  return (plan || []).map(meal => ({
+    ...meal,
+    items: (meal.items || []).map(item => ({ ...item }))
+  }));
+}
+
+function dietPlanTotals(plan) {
+  return (plan || []).reduce((acc, meal) => {
+    (meal.items || []).forEach(item => {
+      acc.calories += Number(item.calories || 0);
+      acc.protein += Number(item.protein || 0);
+      acc.carbs += Number(item.carbs || 0);
+      acc.fat += Number(item.fat || 0);
+    });
+    return acc;
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+}
+
+function renderMealPlan(profile, suppliedPlan = null) {
+  const goal = MEAL_GOALS[profile.goal] || MEAL_GOALS.bulking;
   const baseKcal = profile.weight * 32 * mealAgeFactor(profile.age);
   const calorieTarget = Math.round(baseKcal * goal.calorieFactor / 50) * 50;
   const proteinTarget = Math.round(profile.weight * goal.proteinPerKg);
 
-  const plan = scaleMealPlan(
-    mealBasePlan(profile.preference),
-    calorieTarget,
-    proteinTarget
-  );
+  let plan;
+  if (suppliedPlan) {
+    plan = recalculateDietPlan(suppliedPlan);
+  } else {
+    plan = personalizeMealPlan(
+      scaleMealPlan(
+        mealBasePlan(profile.preference),
+        calorieTarget,
+        proteinTarget
+      ),
+      profile.preference
+    );
+  }
 
-  const totals = plan.reduce((acc, meal) => {
-    meal.items.forEach(item => {
-      acc.calories += item.calories;
-      acc.protein += item.protein;
-      acc.carbs += item.carbs;
-      acc.fat += item.fat;
-    });
-    return acc;
-  }, {calories: 0, protein: 0, carbs: 0, fat: 0});
+  // Ensure every editable numeric item has a stable base quantity.
+  plan.forEach(meal => meal.items.forEach(item => {
+    if (item.baseQuantity == null && typeof item.quantity === "number") {
+      item.baseQuantity = item.quantity;
+    }
+  }));
 
+  activeDietPlan = plan;
+  activeDietProfile = { ...profile };
+
+  const totals = dietPlanTotals(plan);
   const preferenceLabel = {
     vegetarian: "Vegetarian",
     egg: "Egg",
     non_vegetarian: "Non-Vegetarian"
-  }[profile.preference];
-
-  const goalLabel = goal.label;
+  }[profile.preference] || profile.preference;
 
   const result = $("#mealPlanResult");
   result.innerHTML = `
     <div class="meal-profile-card">
       <div>
-        <span class="eyebrow">YOUR PERSONALIZED PLAN</span>
-        <h3>${escapeHtml(goalLabel)} • ${escapeHtml(preferenceLabel)}</h3>
+        <span class="eyebrow">YOUR SMART PERSONALIZED PLAN</span>
+        <h3>${escapeHtml(goal.label)} • ${escapeHtml(preferenceLabel)}</h3>
+        <small style="color:var(--muted)">${dietMemory.favorite_foods.length ? "Built around your learned food preferences." : "Start rating meals to teach FormFit your taste."}</small>
       </div>
       <div class="meal-profile-stats">
         <span><b>${profile.age}</b> Age</span>
@@ -762,8 +888,8 @@ function renderMealPlan(profile) {
     </div>
 
     <div class="meal-plan-grid">
-      ${plan.map(meal => `
-        <article class="meal-card">
+      ${plan.map((meal, mealIndex) => `
+        <article class="meal-card" data-meal-index="${mealIndex}">
           <div class="meal-card-head">
             <div>
               <span class="meal-number">${MEAL_LABELS[meal.key]}</span>
@@ -772,24 +898,36 @@ function renderMealPlan(profile) {
             <span class="meal-kcal">~${meal.items.reduce((s,x)=>s+x.calories,0)} kcal</span>
           </div>
           <div class="meal-items">
-            ${meal.items.map(item => `
-              <div class="meal-item">
+            ${meal.items.map((item, itemIndex) => `
+              <div class="meal-item" data-meal-index="${mealIndex}" data-item-index="${itemIndex}">
                 <div>
                   <strong>${escapeHtml(item.food)}</strong>
                   <small>${item.quantity} ${escapeHtml(item.unit)}</small>
                 </div>
                 <div class="meal-item-macros">
-                  <b>${item.calories} kcal</b>
-                  <span>P ${item.protein}g</span>
-                  <span>C ${item.carbs}g</span>
-                  <span>F ${item.fat}g</span>
+                  <b>${round0(item.calories)} kcal</b>
+                  <span>P ${round1(item.protein)}g</span>
+                  <span>C ${round1(item.carbs)}g</span>
+                  <span>F ${round1(item.fat)}g</span>
                 </div>
+                <div class="meal-card-actions">
+                  <button type="button" class="meal-action-btn favorite ${dietListHas(dietMemory.favorite_foods, item.food) ? "active" : ""}" data-diet-action="favorite" data-food="${escapeHtml(item.food)}" data-meal="${escapeHtml(meal.key)}">♥ Favorite</button>
+                  <button type="button" class="meal-action-btn dislike ${dietListHas(dietMemory.disliked_foods, item.food) ? "active" : ""}" data-diet-action="dislike" data-food="${escapeHtml(item.food)}" data-meal="${escapeHtml(meal.key)}">Not for me</button>
+                  <button type="button" class="meal-action-btn" data-diet-action="replace" data-food="${escapeHtml(item.food)}" data-meal-index="${mealIndex}" data-item-index="${itemIndex}">↻ Replace</button>
+                </div>
+                ${typeof item.quantity === "number" ? `
+                  <div class="meal-edit-row">
+                    <label>Amount</label>
+                    <input class="meal-qty-input" type="number" min="0.1" step="0.1" value="${item.quantity}" data-meal-index="${mealIndex}" data-item-index="${itemIndex}">
+                    <span style="font-size:9px;color:#71888d">${escapeHtml(item.unit)}</span>
+                    <button type="button" class="meal-qty-apply" data-diet-action="apply-quantity">Apply</button>
+                  </div>` : ""}
               </div>
             `).join("")}
           </div>
           <div class="meal-total">
             <span>Meal total</span>
-            <b>~${meal.items.reduce((s,x)=>s+x.calories,0)} kcal</b>
+            <b>~${round0(meal.items.reduce((s,x)=>s+x.calories,0))} kcal</b>
             <span>Protein ${round1(meal.items.reduce((s,x)=>s+x.protein,0))}g</span>
           </div>
         </article>
@@ -799,7 +937,7 @@ function renderMealPlan(profile) {
     <div class="daily-summary-card">
       <div>
         <span class="eyebrow">DAILY NUTRITION SUMMARY</span>
-        <h3>Approximate daily intake</h3>
+        <h3>Your current edited plan</h3>
         <p>${escapeHtml(goal.description)}</p>
       </div>
       <div class="daily-summary-grid">
@@ -808,6 +946,19 @@ function renderMealPlan(profile) {
         <div><span>Total Carbohydrates</span><strong>~${round1(totals.carbs)} g</strong></div>
         <div><span>Total Fat</span><strong>~${round1(totals.fat)} g</strong></div>
       </div>
+      <div class="meal-save-bar">
+        <small>Edits stay in this plan until you save it.</small>
+        <button type="button" class="primary-btn" data-diet-action="save-plan">♡ Save this diet</button>
+        <button type="button" class="ghost-btn" data-diet-action="favorite-plan">★ Save as favorite</button>
+      </div>
+    </div>
+
+    <div class="meal-feedback-box">
+      <label for="dietPlanComment">TEACH FORMFIT — COMMENT ON THIS PLAN</label>
+      <div class="meal-feedback-row">
+        <textarea id="dietPlanComment" placeholder="e.g. I loved paneer but I don't like oats. Please make breakfast lighter."></textarea>
+        <button type="button" class="primary-btn" data-diet-action="comment">Save feedback</button>
+      </div>
     </div>
 
     <div class="meal-disclaimer">
@@ -815,6 +966,200 @@ function renderMealPlan(profile) {
       For medical or clinical nutrition requirements, consult a qualified dietitian.
     </div>
   `;
+}
+
+async function loadDietMemory() {
+  try {
+    const response = await fetch("/api/diet/profile", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    Object.assign(dietMemory, data.profile || {});
+    const map = {
+      favorite_foods: "#dietFavoriteFoods",
+      disliked_foods: "#dietDislikedFoods",
+      avoid_foods: "#dietAvoidFoods"
+    };
+    Object.entries(map).forEach(([key, selector]) => {
+      const el = $(selector);
+      if (el) el.value = (dietMemory[key] || []).join(", ");
+    });
+    const note = $("#dietStyleNote");
+    if (note) note.value = (dietMemory.notes || []).slice(-1)[0] || "";
+    const status = $("#dietMemoryStatus");
+    if (status) status.textContent = dietMemory.favorite_foods.length || dietMemory.disliked_foods.length ? "Personalized memory active" : "Ready to learn";
+  } catch (_) {}
+}
+
+async function saveDietMemoryFromInputs(extraNote = "") {
+  const profile = {
+    favorite_foods: ($("#dietFavoriteFoods")?.value || "").split(",").map(x => x.trim()).filter(Boolean),
+    disliked_foods: ($("#dietDislikedFoods")?.value || "").split(",").map(x => x.trim()).filter(Boolean),
+    avoid_foods: ($( "#dietAvoidFoods")?.value || "").split(",").map(x => x.trim()).filter(Boolean),
+    favorite_meals: dietMemory.favorite_meals || [],
+    notes: [($("#dietStyleNote")?.value || "").trim(), extraNote.trim()].filter(Boolean)
+  };
+  try {
+    const response = await fetch("/api/diet/profile", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(profile)
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    Object.assign(dietMemory, data.profile || profile);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function sendDietFeedback(foodName, mealKey, action, comment = "") {
+  try {
+    const response = await fetch("/api/diet/feedback", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ food_name: foodName || "general", meal_key: mealKey || "", action, comment })
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    Object.assign(dietMemory, data.profile || dietMemory);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function saveCurrentDietPlan(isFavorite = false) {
+  if (!activeDietPlan || !activeDietProfile) return;
+  const defaultName = `${MEAL_GOALS[activeDietProfile.goal]?.label || "Personalized"} • ${new Date().toLocaleDateString()}`;
+  const name = window.prompt("Name this diet", defaultName);
+  if (name === null) return;
+  const response = await fetch("/api/diet/saved", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      name: name.trim() || defaultName,
+      is_favorite: isFavorite,
+      plan: { profile: activeDietProfile, plan: activeDietPlan }
+    })
+  });
+  if (!response.ok) {
+    alert("Could not save this diet. Please make sure you are signed in.");
+    return;
+  }
+  await loadSavedDiets();
+  alert("Diet saved to your personal library.");
+}
+
+async function loadSavedDiets() {
+  const list = $("#savedDietList");
+  if (!list) return;
+  try {
+    const response = await fetch("/api/diet/saved", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) {
+      list.innerHTML = `<div class="saved-diet-empty">Sign in to keep your saved diets across devices.</div>`;
+      return;
+    }
+    const data = await response.json();
+    savedDietCache = data.saved || [];
+    if (!savedDietCache.length) {
+      list.innerHTML = `<div class="saved-diet-empty">Generate a plan and save your favorite version here.</div>`;
+      return;
+    }
+    list.innerHTML = savedDietCache.map(item => `
+      <div class="saved-diet-item" data-saved-diet-id="${item.id}">
+        <div>
+          <strong>${item.is_favorite ? "★ " : ""}${escapeHtml(item.name)}</strong>
+          <small>Updated ${escapeHtml(new Date(item.updated_at || item.created_at).toLocaleString())}</small>
+        </div>
+        <div class="saved-diet-actions">
+          <button type="button" class="saved-diet-open" data-saved-action="open">Open</button>
+          <button type="button" class="saved-diet-delete" data-saved-action="delete">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  } catch (_) {
+    list.innerHTML = `<div class="saved-diet-empty">Saved diets are unavailable right now.</div>`;
+  }
+}
+
+function applyDietQuantity(mealIndex, itemIndex, inputValue) {
+  const meal = activeDietPlan?.[mealIndex];
+  const item = meal?.items?.[itemIndex];
+  const nextQuantity = Number(inputValue);
+  if (!item || !Number.isFinite(nextQuantity) || nextQuantity <= 0 || typeof item.baseQuantity !== "number") return false;
+  const ratio = nextQuantity / item.quantity;
+  item.quantity = round1(nextQuantity);
+  item.calories = round0(Number(item.calories || 0) * ratio);
+  item.protein = round1(Number(item.protein || 0) * ratio);
+  item.carbs = round1(Number(item.carbs || 0) * ratio);
+  item.fat = round1(Number(item.fat || 0) * ratio);
+  return true;
+}
+
+async function handleMealPlanAction(event) {
+  const button = event.target.closest("[data-diet-action]");
+  if (!button) return;
+  const action = button.dataset.dietAction;
+  const mealIndex = Number(button.dataset.mealIndex ?? button.closest("[data-meal-index]")?.dataset.mealIndex ?? -1);
+  const itemIndex = Number(button.dataset.itemIndex ?? button.closest("[data-item-index]")?.dataset.itemIndex ?? -1);
+  const item = activeDietPlan?.[mealIndex]?.items?.[itemIndex];
+  const mealKey = activeDietPlan?.[mealIndex]?.key || button.dataset.meal || "";
+  const food = item?.food || button.dataset.food || "general";
+
+  if (action === "favorite" || action === "dislike") {
+    const ok = await sendDietFeedback(food, mealKey, action);
+    if (!ok) return;
+    if (action === "dislike") {
+      renderMealPlan(activeDietProfile);
+    } else {
+      renderMealPlan(activeDietProfile, activeDietPlan);
+    }
+    return;
+  }
+
+  if (action === "replace") {
+    const replacement = chooseDietAlternative(mealKey, food, activeDietProfile.preference,
+      new Set((activeDietPlan?.[mealIndex]?.items || []).map(x => String(x.food).toLowerCase())));
+    if (!replacement || !item) return;
+    activeDietPlan[mealIndex].items[itemIndex] = replacement;
+    renderMealPlan(activeDietProfile, activeDietPlan);
+    return;
+  }
+
+  if (action === "apply-quantity") {
+    const input = $(
+      `.meal-qty-input[data-meal-index="${mealIndex}"][data-item-index="${itemIndex}"]`
+    );
+    if (applyDietQuantity(mealIndex, itemIndex, input?.value)) {
+      renderMealPlan(activeDietProfile, activeDietPlan);
+    }
+    return;
+  }
+
+  if (action === "comment") {
+    const comment = $("#dietPlanComment")?.value?.trim() || "";
+    if (!comment) return;
+    const ok = await sendDietFeedback("general", "", "comment", comment);
+    if (!ok) return;
+    await saveDietMemoryFromInputs(comment);
+    const status = $("#dietMemoryStatus");
+    if (status) status.textContent = "Memory updated from feedback";
+    $("#dietPlanComment").value = "";
+    return;
+  }
+
+  if (action === "favorite-plan") {
+    await saveCurrentDietPlan(true);
+    return;
+  }
+
+  if (action === "save-plan") {
+    await saveCurrentDietPlan(false);
+  }
 }
 
 function bindMealPlan() {
@@ -831,7 +1176,7 @@ function bindMealPlan() {
   const form = $("#mealPlanForm");
   if (!form) return;
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const age = Number($("#mealAge").value);
@@ -846,6 +1191,7 @@ function bindMealPlan() {
       return;
     }
 
+    await saveDietMemoryFromInputs();
     renderMealPlan({
       age,
       weight,
@@ -853,6 +1199,36 @@ function bindMealPlan() {
       preference: mealState.preference
     });
   });
+
+  $("#mealPlanResult")?.addEventListener("click", handleMealPlanAction);
+  $("#refreshSavedDiets")?.addEventListener("click", loadSavedDiets);
+  $("#savedDietList")?.addEventListener("click", async event => {
+    const actionButton = event.target.closest("[data-saved-action]");
+    const item = event.target.closest("[data-saved-diet-id]");
+    if (!actionButton || !item) return;
+    const id = Number(item.dataset.savedDietId);
+    const saved = savedDietCache.find(x => Number(x.id) === id);
+    if (!saved) return;
+
+    if (actionButton.dataset.savedAction === "open") {
+      const payload = saved.plan || {};
+      if (payload.profile && payload.plan) {
+        renderMealPlan(payload.profile, payload.plan);
+      }
+      return;
+    }
+
+    if (actionButton.dataset.savedAction === "delete") {
+      if (!window.confirm("Delete this saved diet?")) return;
+      const response = await fetch(`/api/diet/saved/${id}`, {
+        method: "DELETE", credentials: "same-origin"
+      });
+      if (response.ok) await loadSavedDiets();
+    }
+  });
+
+  void loadDietMemory();
+  void loadSavedDiets();
 }
 
 async function loadExercises() {

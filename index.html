@@ -198,12 +198,56 @@
             </div>
           </div>
 
+          <div class="diet-memory-card">
+            <div class="diet-memory-head">
+              <div>
+                <span class="eyebrow">YOUR FOOD DNA</span>
+                <h3>Teach FormFit what you actually enjoy.</h3>
+              </div>
+              <span class="diet-memory-badge" id="dietMemoryStatus">Ready to learn</span>
+            </div>
+            <div class="diet-memory-grid">
+              <div class="meal-field">
+                <label for="dietFavoriteFoods">FAVORITE FOODS</label>
+                <input id="dietFavoriteFoods" type="text" placeholder="e.g. paneer, poha, chicken">
+                <small>Foods you would happily eat again.</small>
+              </div>
+              <div class="meal-field">
+                <label for="dietDislikedFoods">DISLIKED FOODS</label>
+                <input id="dietDislikedFoods" type="text" placeholder="e.g. oats, tofu">
+                <small>Foods FormFit should reduce or replace.</small>
+              </div>
+              <div class="meal-field">
+                <label for="dietAvoidFoods">FOODS TO AVOID</label>
+                <input id="dietAvoidFoods" type="text" placeholder="e.g. peanuts, fish">
+                <small>Hard exclusions or foods you do not want suggested.</small>
+              </div>
+              <div class="meal-field">
+                <label for="dietStyleNote">MEAL STYLE</label>
+                <input id="dietStyleNote" type="text" placeholder="e.g. simple, spicy, quick to cook">
+                <small>Practical preferences FormFit should remember.</small>
+              </div>
+            </div>
+          </div>
+
           <button class="primary-btn big submit-btn meal-generate-btn" type="submit">
             Generate my Indian meal plan <span>→</span>
           </button>
         </form>
 
         <div id="mealPlanResult" class="meal-plan-result" aria-live="polite"></div>
+        <section class="saved-diets-panel" aria-label="Saved diets">
+          <div class="saved-diets-head">
+            <div>
+              <span class="eyebrow">YOUR DIET LIBRARY</span>
+              <h3>Saved & favorite plans</h3>
+            </div>
+            <button type="button" class="ghost-btn" id="refreshSavedDiets">Refresh</button>
+          </div>
+          <div id="savedDietList" class="saved-diet-list">
+            <div class="saved-diet-empty">Generate a plan and save your favorite version here.</div>
+          </div>
+        </section>
       </section>
 
       <section id="libraryView" class="view">
