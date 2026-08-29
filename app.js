@@ -35,8 +35,25 @@ const visual = {
   message: "",
   lastView: "",
   lastTime: performance.now(),
-  frameId: 0
+  frameId: 0,
+
+  // Live geometry is driven by the newest browser MediaPipe result.
+  // API responses provide coaching/status only and never block rendering.
+  liveLandmarks: [],
+  liveLandmarkPrev: [],
+  liveLandmarkTime: 0,
+  liveSegments: [],
+  pipeStatusByKey: new Map()
 };
+
+const LIVE_SEGMENTS = [
+  [0, 11], [0, 12], [11, 12],
+  [11, 13], [13, 15],
+  [12, 14], [14, 16],
+  [11, 23], [12, 24], [23, 24],
+  [23, 25], [25, 27],
+  [24, 26], [26, 28]
+];
 
 let formClockTimer = null;
 let formStartTime = 0;
@@ -949,6 +966,11 @@ function renderExercises() {
 function resetVisualState() {
   visual.pipes = [];
   visual.targets = [];
+  visual.liveLandmarks = [];
+  visual.liveLandmarkPrev = [];
+  visual.liveLandmarkTime = 0;
+  visual.liveSegments = [];
+  visual.pipeStatusByKey = new Map();
   visual.score = 0;
   visual.reps = 0;
   acceptedReps = 0;
@@ -1367,7 +1389,9 @@ function drawPoseResult(data) {
 
   resizeOverlay();
 
-  smoothPipes(data.pipes || []);
+  // API responses update coaching/status; current pipe GEOMETRY stays on
+  // the newest browser pose so network latency cannot pull the overlay back.
+  updatePipeStatusMap(data.pipes || [], visual.liveLandmarks);
   smoothTargets(data.targets || []);
   applyRedPipeFallback(data);
 
@@ -1730,18 +1754,16 @@ async function setupBrowserPose() {
     minTrackingConfidence: 0.55
   });
 
-  browserPose.onResults(async (results) => {
+  browserPose.onResults((results) => {
     if (!results.poseLandmarks || results.poseLandmarks.length < 33) {
+      visual.liveLandmarks = [];
+      visual.liveLandmarkPrev = [];
+      visual.liveSegments = [];
       visual.pipes = [];
       visual.targets = [];
       setCoachStatus('BODY NOT DETECTED', 'var(--red)');
       return;
     }
-
-    // One analysis request per delivered camera frame, subject only to the
-    // existing no-overlap guard. Slower cameras naturally produce fewer
-    // requests; faster cameras can produce more until the API is busy.
-    if (browserPoseBusy) return;
 
     const video = $('#cameraVideo');
     const width = video?.videoWidth || 1280;
@@ -1755,11 +1777,116 @@ async function setupBrowserPose() {
       presence: Number(lm.presence ?? 1)
     }));
 
-    await sendLandmarksToAPI(landmarks, width, height);
+    // CRITICAL: update live geometry immediately, even when an API request
+    // is still in flight. This keeps the camera/overlay path independent
+    // from Render latency.
+    updateLivePose(landmarks);
+
+    // Keep only one remote analysis request in flight. Camera frames never
+    // wait on the network/API.
+    if (!browserPoseBusy) {
+      void sendLandmarksToAPI(landmarks, width, height);
+    }
   });
 
   browserPoseReady = true;
   return true;
+}
+
+
+function normalizePoint(point) {
+  return {
+    x: Number(point?.x ?? 0),
+    y: Number(point?.y ?? 0)
+  };
+}
+
+function nearestLiveLandmark(point, landmarks) {
+  let best = -1;
+  let bestDistance = Infinity;
+
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    const d = Math.hypot(
+      Number(point?.x ?? 0) - Number(lm.x),
+      Number(point?.y ?? 0) - Number(lm.y)
+    );
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = i;
+    }
+  }
+
+  return bestDistance <= 0.12 ? best : -1;
+}
+
+function segmentKey(a, b) {
+  return `${Math.min(a, b)}:${Math.max(a, b)}`;
+}
+
+function updatePipeStatusMap(apiPipes, landmarks) {
+  if (!Array.isArray(apiPipes) || !apiPipes.length) return;
+
+  const next = new Map(visual.pipeStatusByKey);
+
+  for (const pipe of apiPipes) {
+    if (!pipe?.a || !pipe?.b) continue;
+
+    const ia = nearestLiveLandmark(normalizePoint(pipe.a), landmarks);
+    const ib = nearestLiveLandmark(normalizePoint(pipe.b), landmarks);
+
+    if (ia < 0 || ib < 0 || ia === ib) continue;
+
+    const status = String(pipe.status ?? "green").trim().toLowerCase();
+    if (!["green", "yellow", "red"].includes(status)) continue;
+
+    next.set(segmentKey(ia, ib), status);
+  }
+
+  visual.pipeStatusByKey = next;
+
+  // Preserve only statuses for anatomically supported segments.
+  const supported = new Set(LIVE_SEGMENTS.map(([a, b]) => segmentKey(a, b)));
+  for (const key of next.keys()) {
+    if (!supported.has(key)) next.delete(key);
+  }
+}
+
+function updateLivePose(landmarks) {
+  if (!Array.isArray(landmarks) || landmarks.length < 33) return;
+
+  const now = performance.now();
+  visual.liveLandmarkPrev = visual.liveLandmarks;
+  visual.liveLandmarks = landmarks;
+  visual.liveLandmarkTime = now;
+
+  // Build only the anatomical segments that the current AI response has
+  // identified. That preserves the existing visual scope of each exercise.
+  if (!visual.liveSegments.length) {
+    visual.liveSegments = LIVE_SEGMENTS.map(([a, b]) => ({
+      aIndex: a,
+      bIndex: b,
+      key: segmentKey(a, b),
+      status: visual.pipeStatusByKey.get(segmentKey(a, b)) || "green"
+    }));
+  }
+
+  visual.pipes = visual.liveSegments
+    .filter(seg => {
+      const a = landmarks[seg.aIndex];
+      const b = landmarks[seg.bIndex];
+      return (
+        a && b &&
+        Number(a.visibility ?? 1) >= 0.35 &&
+        Number(b.visibility ?? 1) >= 0.35
+      );
+    })
+    .map(seg => ({
+      a: { x: Number(landmarks[seg.aIndex].x), y: Number(landmarks[seg.aIndex].y) },
+      b: { x: Number(landmarks[seg.bIndex].x), y: Number(landmarks[seg.bIndex].y) },
+      status: visual.pipeStatusByKey.get(seg.key) || seg.status || "green",
+      key: seg.key
+    }));
 }
 
 async function sendLandmarksToAPI(landmarks, width, height) {
@@ -1790,10 +1917,14 @@ async function sendLandmarksToAPI(landmarks, width, height) {
     if (serial !== requestSerial) return;
 
     if (data.detected) {
+      updatePipeStatusMap(data.pipes || [], landmarks);
       drawPoseResult(data);
       updateFormUI(data);
     } else {
       visual.pipes = [];
+      visual.liveLandmarks = [];
+      visual.liveSegments = [];
+      visual.pipeStatusByKey = new Map();
       visual.targets = [];
       setCoachStatus('BODY NOT DETECTED', 'var(--red)');
     }
@@ -1812,12 +1943,14 @@ async function sendLandmarksToAPI(landmarks, width, height) {
 }
 
 async function processBrowserPose() {
-  if (!browserPose || !browserPoseReady || !cameraStream || browserPoseBusy) return;
+  if (!browserPose || !browserPoseReady || !cameraStream) return;
 
   const video = $('#cameraVideo');
   if (!video || video.readyState < 2) return;
 
   try {
+    // MediaPipe itself is serialized internally; do not tie camera-frame
+    // scheduling to the remote API's browserPoseBusy flag.
     await browserPose.send({ image: video });
   } catch (error) {
     console.debug('Pose frame skipped:', error);
