@@ -38,7 +38,8 @@ app.secret_key = os.environ.get("FORMFIT_SECRET_KEY", SECRET_KEY)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,  # local HTTP development server
+    # Local development is HTTP; hosted Render is HTTPS.
+    SESSION_COOKIE_SECURE=os.environ.get("FORMFIT_PRODUCTION", "").lower() == "true",
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
 )
 
@@ -94,10 +95,23 @@ def db():
     if DATABASE_URL:
         if psycopg is None:
             raise RuntimeError("DATABASE_URL is set but psycopg is not installed")
-        return DBAdapter(
-            psycopg.connect(DATABASE_URL, row_factory=dict_row),
-            postgres=True,
-        )
+        # Keep a short retry window for a freshly waking hosted database.
+        # This prevents a transient first-request connection failure from
+        # being mistaken for an authentication failure.
+        last_error = None
+        for _ in range(3):
+            try:
+                return DBAdapter(
+                    psycopg.connect(
+                        DATABASE_URL,
+                        row_factory=dict_row,
+                        connect_timeout=5,
+                    ),
+                    postgres=True,
+                )
+            except Exception as exc:
+                last_error = exc
+        raise last_error
 
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.execute("PRAGMA busy_timeout = 10000")
@@ -178,44 +192,6 @@ def init_db():
 
 EXERCISES = load_exercises()
 
-
-def db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    with db() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS workout_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            kind TEXT NOT NULL DEFAULT 'form_session',
-            exercise_id TEXT,
-            exercise_name TEXT,
-            reps INTEGER NOT NULL DEFAULT 0,
-            score REAL NOT NULL DEFAULT 0,
-            duration_seconds INTEGER NOT NULL DEFAULT 0,
-            calories REAL NOT NULL DEFAULT 0,
-            status TEXT,
-            view TEXT,
-            message TEXT,
-            payload_json TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_history_user_created
-        ON workout_history(user_id, created_at DESC);
-        """)
 
 
 def normalize_email(value):
