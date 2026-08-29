@@ -398,17 +398,34 @@ def save_history():
     now = datetime.now(timezone.utc).isoformat()
 
     with db() as conn:
-        cur = conn.execute(
-            """INSERT INTO workout_history
-            (user_id, kind, exercise_id, exercise_name, reps, score,
-             duration_seconds, calories, status, view, message, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (current_user_id(), kind, exercise_id, exercise_name, reps, score,
-             duration, calories, status, view, message,
-             json.dumps(safe_payload) if safe_payload is not None else None,
-             now),
+        params = (
+            current_user_id(), kind, exercise_id, exercise_name, reps, score,
+            duration, calories, status, view, message,
+            json.dumps(safe_payload) if safe_payload is not None else None,
+            now,
         )
-        history_id = cur.lastrowid
+
+        # Preserve the current SQLite behavior.
+        # PostgreSQL needs RETURNING id and must consume the returned row
+        # before the DB context manager commits.
+        if conn.postgres:
+            cur = conn.execute(
+                """INSERT INTO workout_history
+                (user_id, kind, exercise_id, exercise_name, reps, score,
+                 duration_seconds, calories, status, view, message, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+                params,
+            )
+            history_id = inserted_id(cur)
+        else:
+            cur = conn.execute(
+                """INSERT INTO workout_history
+                (user_id, kind, exercise_id, exercise_name, reps, score,
+                 duration_seconds, calories, status, view, message, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                params,
+            )
+            history_id = cur.lastrowid
 
     return jsonify({"ok": True, "id": int(history_id), "created_at": now}), 201
 
