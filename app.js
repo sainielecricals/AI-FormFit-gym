@@ -405,6 +405,7 @@ function showView(name, options = {}) {
     home: "Train with better form.",
     recommend: "Build your workout.",
     meal: "Eat smarter for your goal.",
+    winterArc: "Build your winter arc.",
     library: "Choose your movement.",
     form: "Practice with better form.",
     history: "My workout history."
@@ -529,6 +530,175 @@ function bindNavigation() {
   }
 }
 
+
+/* ============================================================
+   FORMFIT — WINTER ARC
+   Seasonal goal-setting layer. Uses existing workout + diet builders.
+   Does not touch pose/model logic.
+   ============================================================ */
+
+const winterArcState = {
+  equipment: []
+};
+
+function winterArcDaysBetween(start, end) {
+  const a = new Date(start + "T00:00:00");
+  const b = new Date(end + "T00:00:00");
+  return Math.max(1, Math.ceil((b - a) / 86400000) + 1);
+}
+
+function syncWinterArcDays() {
+  const start = new Date();
+  const year = start.getFullYear();
+  // Winter Arc is commonly framed as Oct 1 → Jan 1. If a user opens
+  // FormFit during Oct–Dec, keep the current season; Jan–Sep points
+  // to the next upcoming Oct 1.
+  const arcYear = start.getMonth() >= 9 ? year : year + 1;
+  const arcStart = `${arcYear}-10-01`;
+  const nextYear = arcYear + 1;
+  const arcEnd = `${nextYear}-01-01`;
+  const days = winterArcDaysBetween(arcStart, arcEnd);
+  const el = $("#winterArcDays");
+  if (el) el.textContent = days;
+  return { arcStart, arcEnd, days };
+}
+
+function winterArcGoalDietMap(goal) {
+  if (goal === "fat loss") return "cutting";
+  if (goal === "muscle gain") return "muscle_gain";
+  if (goal === "strength") return "muscle_gain";
+  if (goal === "mobility") return "maintaining";
+  return "maintaining";
+}
+
+function winterArcReasonText(reason) {
+  return {
+    physique: "physique improvement",
+    strength: "strength development",
+    consistency: "consistency and routine",
+    fitness: "stamina and overall fitness",
+    sport: "sport/performance support"
+  }[reason] || "personal improvement";
+}
+
+function renderWinterArcResult(profile, habits, dates) {
+  const result = $("#winterArcResult");
+  if (!result) return;
+  const habitLabels = {
+    training: "training / active recovery",
+    protein: "nutrition target",
+    steps: "daily movement",
+    sleep: "sleep routine",
+    screen: "screen-free / reading block"
+  };
+  result.innerHTML = `
+    <div class="winter-plan-head">
+      <div>
+        <span class="eyebrow">YOUR WINTER ARC</span>
+        <h3>${escapeHtml(profile.goalLabel)} • ${escapeHtml(profile.splitLabel)}</h3>
+        <p>${dates.arcStart} → ${dates.arcEnd} • ${dates.days} days • Built around ${escapeHtml(winterArcReasonText(profile.reason))}.</p>
+      </div>
+      <div class="winter-score-box"><span>ACTIVE RULES</span><strong>${habits.length}</strong></div>
+    </div>
+    <div class="winter-output-grid">
+      <article class="winter-output-card"><span class="eyebrow">TRAINING</span><h4>Smart workout direction</h4><p>${escapeHtml(profile.trainingNote)}</p><button type="button" class="secondary-btn" id="winterBuildWorkout">Build Winter Workout →</button></article>
+      <article class="winter-output-card"><span class="eyebrow">NUTRITION</span><h4>Arc food direction</h4><p>${escapeHtml(profile.dietNote)}</p><button type="button" class="secondary-btn" id="winterBuildDiet">Build Winter Diet →</button></article>
+      <article class="winter-output-card"><span class="eyebrow">DAILY CHECKLIST</span><h4>Keep these visible</h4><p>${habits.map(x => escapeHtml(habitLabels[x] || x)).join(" • ")}</p></article>
+    </div>
+    <div class="winter-arc-note"><strong>Remember:</strong> Winter Arc is a consistency framework, not a punishment challenge. Missing one day is a signal to resume—not a reason to restart from zero.</div>
+  `;
+
+  $("#winterBuildWorkout")?.addEventListener("click", async () => {
+    showView("recommend");
+    const goalBtn = $$(".choice[data-field='goal']").find(b => b.dataset.value === profile.goal);
+    if (goalBtn) goalBtn.click();
+    const split = $("#workoutSplit");
+    if (split) { split.value = profile.split; split.dispatchEvent(new Event("change")); }
+    $("#days").value = profile.days;
+    $("#perDay").value = Math.min(10, Math.max(3, profile.minutes >= 70 ? 7 : profile.minutes >= 50 ? 6 : 5));
+    state.equipment = [...profile.equipment];
+    $$("#equipmentChoices .choice").forEach(btn => btn.classList.toggle("selected", state.equipment.includes(btn.dataset.value)));
+    await generatePlan({preventDefault() {}});
+  });
+
+  $("#winterBuildDiet")?.addEventListener("click", () => {
+    showView("meal");
+    $("#mealAge")?.focus();
+    const goal = winterArcGoalDietMap(profile.goal);
+    const pref = profile.preference;
+    $$("#mealGoalChoices .meal-choice").forEach(btn => btn.classList.toggle("selected", btn.dataset.value === goal));
+    $$("#mealPreferenceChoices .meal-choice").forEach(btn => btn.classList.toggle("selected", btn.dataset.value === pref));
+    mealState.goal = goal;
+    mealState.preference = pref;
+    const note = $("#dietStyleNote");
+    if (note) note.value = `Winter Arc: ${winterArcReasonText(profile.reason)}`;
+  });
+}
+
+function bindWinterArc() {
+  syncWinterArcDays();
+  $$("[data-winter-equipment]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const value = btn.dataset.winterEquipment;
+      if (winterArcState.equipment.includes(value)) {
+        winterArcState.equipment = winterArcState.equipment.filter(x => x !== value);
+        btn.classList.remove("selected");
+      } else {
+        winterArcState.equipment.push(value);
+        btn.classList.add("selected");
+      }
+    });
+  });
+
+  const form = $("#winterArcForm");
+  if (!form) return;
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const days = Number($("#winterDays")?.value || 4);
+    const minutes = Number($("#winterMinutes")?.value || 60);
+    if (!winterArcState.equipment.length) {
+      alert("Select at least one equipment option. FormFit will not assume Bodyweight.");
+      return;
+    }
+    const goal = $("#winterGoal")?.value || "muscle gain";
+    const reason = $("#winterReason")?.value || "physique";
+    const split = $("#winterSplit")?.value || "auto";
+    const splitLabels = {
+      auto: "FormFit-decided split",
+      push_pull_legs: "Push • Pull • Legs",
+      full_body: "Full Body",
+      upper_lower: "Upper • Lower",
+      one_body_part: "One body part a day",
+      bro_split: "Chest • Back • Shoulders • Arms • Legs"
+    };
+    const dates = syncWinterArcDays();
+    const habits = $$('input[name="winterHabit"]:checked').map(x => x.value);
+    const preference = $("#winterDietPreference")?.value || "vegetarian";
+
+    const trainingNote = split === "push_pull_legs"
+      ? "Prioritize a repeatable PPL sequence, put the main compound movements first, then accessories, and keep weekly volume recoverable."
+      : "Use the selected split as the structure, then prioritize goal-relevant compounds followed by targeted accessory work and manageable conditioning.";
+    const dietNote = goal === "fat loss"
+      ? "Use a sustainable calorie-controlled pattern with protein-rich meals, vegetables, whole foods and enough food to train well."
+      : goal === "muscle gain" || goal === "strength"
+        ? "Use a protein-focused meal pattern with sufficient energy, carbohydrates around training and foods you actually enjoy eating consistently."
+        : "Use a balanced, repeatable meal pattern that supports training, recovery and your normal routine.";
+
+    localStorage.setItem("formfit_winter_arc", JSON.stringify({dates, goal, reason, split, days, minutes, preference, equipment: winterArcState.equipment, habits}));
+    renderWinterArcResult({
+      goalLabel: {"muscle gain":"Muscle Gain", strength:"Strength", "fat loss":"Fat Loss", "general fitness":"General Fitness", mobility:"Mobility"}[goal] || goal,
+      reason,
+      split,
+      splitLabel: splitLabels[split] || split,
+      days,
+      minutes,
+      preference,
+      equipment: winterArcState.equipment,
+      trainingNote,
+      dietNote
+    }, habits, dates);
+  });
+}
 
 /* ============================================================
    FORMFIT — PERSONALIZED INDIAN MEAL PLAN
@@ -3254,6 +3424,7 @@ document.addEventListener(
     bindNavigation();
 bindInternalBackNavigation();
   bindMealPlan();
+  bindWinterArc();
     bindFormChoices();
 
     const planResult = $("#planResult");

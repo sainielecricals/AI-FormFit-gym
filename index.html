@@ -24,6 +24,7 @@
       <nav>
         <button class="nav-item active" data-view="home">⌂ <span>Dashboard</span></button>
         <button class="nav-item" data-view="recommend">✦ <span>AI Workout</span></button>
+        <button class="nav-item" data-view="winterArc">❄ <span>Winter Arc</span></button>
         <button class="nav-item" data-view="meal">🥗 <span>Meal Plan</span></button>
         <button class="nav-item" data-view="library">◈ <span>Exercise Library</span></button>
         <button class="nav-item" data-view="form">◎ <span>Form Checker</span></button>
@@ -121,9 +122,22 @@
             <div class="form-section"><label>Exercises / day</label><input id="perDay" type="number" min="3" max="10" value="6"></div>
           </div>
           <div class="form-section">
+            <label for="workoutSplit">Choose your workout split</label>
+            <select id="workoutSplit">
+              <option value="auto">Let FormFit decide (recommended)</option>
+              <option value="push_pull_legs">Push • Pull • Legs</option>
+              <option value="full_body">Full Body</option>
+              <option value="upper_lower">Upper • Lower</option>
+              <option value="one_body_part">One body part a day</option>
+              <option value="bro_split">Chest • Back • Shoulders • Arms • Legs</option>
+            </select>
+            <small>FormFit will adapt the split to your selected training days.</small>
+          </div>
+          <div class="form-section">
             <label>Available equipment</label>
+            <small>Select only the equipment you actually have. FormFit will not assume Bodyweight.</small>
             <div class="choice-grid compact" id="equipmentChoices">
-              <button type="button" class="choice selected" data-value="Bodyweight">Bodyweight</button>
+              <button type="button" class="choice" data-value="Bodyweight">Bodyweight</button>
               <button type="button" class="choice" data-value="Dumbbells">Dumbbells</button>
               <button type="button" class="choice" data-value="Barbell">Barbell</button>
               <button type="button" class="choice" data-value="Cable">Cable</button>
@@ -138,6 +152,99 @@
         <div id="planResult" class="plan-result"></div>
       </section>
 
+
+      <section id="winterArcView" class="view">
+        <div class="winter-arc-hero">
+          <div>
+            <span class="pill">SEASONAL RESET • OCT 1 → JAN 1</span>
+            <h2>Winter Arc.<br><em>Lock in before the new year.</em></h2>
+            <p>Build a realistic 90-day routine around training, food, recovery and consistency. Winter Arc is a social-media self-improvement concept, not a fixed medical or fitness protocol.</p>
+          </div>
+          <div class="winter-arc-badge">
+            <span>YOUR ARC</span>
+            <strong id="winterArcDays">92</strong>
+            <small>days</small>
+          </div>
+        </div>
+
+        <div class="winter-arc-grid">
+          <article class="winter-info-card winter-info-main">
+            <span class="eyebrow">WHAT THIS IS</span>
+            <h3>The smart version of Winter Arc</h3>
+            <p>Use the season to build habits you can actually keep after January. FormFit focuses on progressive training, enough food, sleep, recovery and repeatable routines—not punishment.</p>
+            <div class="winter-principles">
+              <div><b>Train</b><span>Strength + conditioning matched to your split, level and equipment.</span></div>
+              <div><b>Fuel</b><span>Personalized meals that support your selected goal and food preferences.</span></div>
+              <div><b>Recover</b><span>Rest days, sleep and manageable volume are part of the plan.</span></div>
+              <div><b>Repeat</b><span>Consistency beats extreme rules that collapse after a week.</span></div>
+            </div>
+          </article>
+
+          <article class="winter-info-card">
+            <span class="eyebrow">DO</span>
+            <h3>What to do</h3>
+            <ul class="winter-list good">
+              <li>Follow a repeatable training schedule.</li>
+              <li>Keep protein-rich, minimally processed foods in rotation.</li>
+              <li>Use walking/cardio to build baseline activity.</li>
+              <li>Keep a consistent sleep routine.</li>
+              <li>Track workouts and adjust from real performance.</li>
+            </ul>
+          </article>
+
+          <article class="winter-info-card">
+            <span class="eyebrow">DON'T</span>
+            <h3>What not to do</h3>
+            <ul class="winter-list bad">
+              <li>Do not treat exhaustion as progress.</li>
+              <li>Do not copy extreme influencer challenges blindly.</li>
+              <li>Do not remove food groups without a reason.</li>
+              <li>Do not train hard every day just to keep a streak.</li>
+              <li>Do not sacrifice sleep for early-morning “grind”.</li>
+            </ul>
+          </article>
+        </div>
+
+        <form id="winterArcForm" class="winter-builder">
+          <div class="section-head"><div><span class="eyebrow">BUILD YOUR ARC</span><h3>Tell FormFit what your winter is for.</h3><p>These choices control the workout split, training focus and meal-plan direction.</p></div></div>
+          <div class="winter-form-grid">
+            <div class="meal-field"><label for="winterGoal">MAIN GOAL</label><select id="winterGoal"><option value="muscle gain">Build muscle</option><option value="strength">Get stronger</option><option value="fat loss">Lose fat</option><option value="general fitness">Improve fitness</option><option value="mobility">Mobility + movement</option></select></div>
+            <div class="meal-field"><label for="winterReason">WHY THIS WINTER ARC?</label><select id="winterReason"><option value="physique">Improve my physique</option><option value="strength">Become stronger</option><option value="consistency">Build discipline and consistency</option><option value="fitness">Improve stamina and fitness</option><option value="sport">Support a sport or performance goal</option></select></div>
+            <div class="meal-field"><label for="winterSplit">TRAINING SPLIT</label><select id="winterSplit"><option value="auto">Let FormFit decide</option><option value="push_pull_legs">Push • Pull • Legs</option><option value="full_body">Full Body</option><option value="upper_lower">Upper • Lower</option><option value="one_body_part">One body part a day</option><option value="bro_split">Chest • Back • Shoulders • Arms • Legs</option></select></div>
+            <div class="meal-field"><label for="winterDays">TRAINING DAYS / WEEK</label><input id="winterDays" type="number" min="2" max="6" value="4"></div>
+            <div class="meal-field"><label for="winterMinutes">MINUTES / SESSION</label><input id="winterMinutes" type="number" min="20" max="120" value="60"></div>
+            <div class="meal-field"><label for="winterDietPreference">FOOD STYLE</label><select id="winterDietPreference"><option value="vegetarian">Vegetarian</option><option value="egg">Egg</option><option value="non_vegetarian">Non-Vegetarian</option></select></div>
+          </div>
+
+          <div class="form-section winter-equipment-block">
+            <label>AVAILABLE EQUIPMENT</label>
+            <small>Select only what you actually have. Winter Arc will not silently add Bodyweight.</small>
+            <div class="choice-grid compact" id="winterEquipmentChoices">
+              <button type="button" class="choice" data-winter-equipment="Bodyweight">Bodyweight</button>
+              <button type="button" class="choice" data-winter-equipment="Dumbbells">Dumbbells</button>
+              <button type="button" class="choice" data-winter-equipment="Barbell">Barbell</button>
+              <button type="button" class="choice" data-winter-equipment="Cable">Cable</button>
+              <button type="button" class="choice" data-winter-equipment="Machine">Machine</button>
+              <button type="button" class="choice" data-winter-equipment="Resistance Band">Resistance Band</button>
+              <button type="button" class="choice" data-winter-equipment="Kettlebell">Kettlebell</button>
+              <button type="button" class="choice" data-winter-equipment="Bench">Bench</button>
+            </div>
+          </div>
+
+          <div class="winter-habits">
+            <div><b>Daily Arc rules</b><span>Choose the habits you want FormFit to keep visible.</span></div>
+            <label><input type="checkbox" name="winterHabit" value="training" checked> Complete scheduled training / active recovery</label>
+            <label><input type="checkbox" name="winterHabit" value="protein" checked> Hit your nutrition target</label>
+            <label><input type="checkbox" name="winterHabit" value="steps" checked> Get regular daily movement</label>
+            <label><input type="checkbox" name="winterHabit" value="sleep" checked> Protect your sleep routine</label>
+            <label><input type="checkbox" name="winterHabit" value="screen"> Add a screen-free / reading block</label>
+          </div>
+
+          <button class="primary-btn big submit-btn" type="submit">Build my Winter Arc <span>→</span></button>
+        </form>
+
+        <div id="winterArcResult" class="winter-result"></div>
+      </section>
 
       <section id="mealView" class="view">
         <div class="section-head meal-head">

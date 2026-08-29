@@ -200,6 +200,46 @@ def init_db():
                 CREATE INDEX IF NOT EXISTS idx_diet_feedback_user_created
                 ON diet_feedback(user_id, created_at DESC)
             """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS workout_preferences (
+                    user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                    favorite_exercises TEXT NOT NULL DEFAULT '[]',
+                    disliked_exercises TEXT NOT NULL DEFAULT '[]',
+                    avoid_exercises TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS workout_saved_plans (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_workout_saved_user_updated
+                ON workout_saved_plans(user_id, updated_at DESC)
+            """)
+            conn.conn.execute("""
+                CREATE TABLE IF NOT EXISTS workout_feedback (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    exercise_id TEXT NOT NULL,
+                    exercise_name TEXT,
+                    action TEXT NOT NULL,
+                    comment TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_workout_feedback_user_created
+                ON workout_feedback(user_id, created_at DESC)
+            """)
         else:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -268,6 +308,44 @@ def init_db():
 
                 CREATE INDEX IF NOT EXISTS idx_diet_feedback_user_created
                 ON diet_feedback(user_id, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS workout_preferences (
+                    user_id INTEGER PRIMARY KEY,
+                    favorite_exercises TEXT NOT NULL DEFAULT '[]',
+                    disliked_exercises TEXT NOT NULL DEFAULT '[]',
+                    avoid_exercises TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS workout_saved_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_workout_saved_user_updated
+                ON workout_saved_plans(user_id, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS workout_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    exercise_id TEXT NOT NULL,
+                    exercise_name TEXT,
+                    action TEXT NOT NULL,
+                    comment TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_workout_feedback_user_created
+                ON workout_feedback(user_id, created_at DESC);
             """)
 
 EXERCISES = load_exercises()
@@ -336,6 +414,10 @@ def recommend():
         profile["exercises_per_day"] = int(profile["exercises_per_day"])
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid days or exercise count"}), 400
+
+    with db() as conn:
+        workout_memory = _workout_profile_payload(_workout_profile_row(conn))
+    profile.update(workout_memory)
 
     plan = build_weekly_plan(profile)
 
@@ -679,6 +761,286 @@ def delete_saved_diet(diet_id):
         )
     if cur.rowcount == 0:
         return jsonify({"error": "Saved diet not found"}), 404
+    return jsonify({"ok": True})
+
+
+
+# -----------------------------
+# Personalized workout memory
+# -----------------------------
+def _workout_profile_row(conn):
+    return conn.execute(
+        "SELECT * FROM workout_preferences WHERE user_id = ?",
+        (current_user_id(),),
+    ).fetchone()
+
+
+def _workout_profile_payload(row):
+    if not row:
+        return {
+            "favorite_exercises": [],
+            "disliked_exercises": [],
+            "avoid_exercises": [],
+            "notes": [],
+        }
+    return {
+        "favorite_exercises": _json_list(row["favorite_exercises"]),
+        "disliked_exercises": _json_list(row["disliked_exercises"]),
+        "avoid_exercises": _json_list(row["avoid_exercises"]),
+        "notes": _json_list(row["notes"]),
+    }
+
+
+def _workout_profile_update(conn, profile):
+    now = datetime.now(timezone.utc).isoformat()
+    fields = {
+        "favorite_exercises": _dedupe(_json_list(profile.get("favorite_exercises"))),
+        "disliked_exercises": _dedupe(_json_list(profile.get("disliked_exercises"))),
+        "avoid_exercises": _dedupe(_json_list(profile.get("avoid_exercises"))),
+        "notes": _dedupe(_json_list(profile.get("notes")), limit=20),
+    }
+    encoded = {k: json.dumps(v, ensure_ascii=False) for k, v in fields.items()}
+    existing = _workout_profile_row(conn)
+    if existing:
+        conn.execute(
+            """UPDATE workout_preferences
+               SET favorite_exercises = ?, disliked_exercises = ?, avoid_exercises = ?,
+                   notes = ?, updated_at = ?
+               WHERE user_id = ?""",
+            (
+                encoded["favorite_exercises"],
+                encoded["disliked_exercises"],
+                encoded["avoid_exercises"],
+                encoded["notes"],
+                now,
+                current_user_id(),
+            ),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO workout_preferences
+               (user_id, favorite_exercises, disliked_exercises, avoid_exercises, notes, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                current_user_id(),
+                encoded["favorite_exercises"],
+                encoded["disliked_exercises"],
+                encoded["avoid_exercises"],
+                encoded["notes"],
+                now,
+            ),
+        )
+    return fields
+
+
+def _learn_workout_comment(comment):
+    text = str(comment or "").strip()
+    lower = text.lower()
+    signals = {
+        "favorite_exercises": [],
+        "disliked_exercises": [],
+        "avoid_exercises": [],
+        "notes": [],
+    }
+    if not text:
+        return signals
+    signals["notes"].append(text[:500])
+
+    # Match known library exercise names so natural-language comments
+    # can update workout memory without guessing arbitrary entities.
+    known = []
+    for ex_id, ex in EXERCISES.items():
+        name = str(ex.get("name") or ex_id).strip()
+        if name:
+            known.append((ex_id, name))
+
+    dislike_markers = [
+        "don't like", "do not like", "hate", "dislike",
+        "not like", "nahi pasand", "pasand nahi", "pasand nhi",
+    ]
+    avoid_markers = [
+        "avoid", "can't do", "cannot do", "can't", "cannot",
+        "injury", "pain", "nahi kar", "nahi karta", "nahi karti",
+    ]
+    like_markers = [
+        "love", "like", "favorite", "favourite",
+        "pasand", "acha laga", "achha laga",
+    ]
+
+    for ex_id, name in known:
+        variants = {name.lower(), ex_id.lower(), ex_id.replace("_", " ").lower()}
+        hit = False
+        for variant in variants:
+            if variant and variant in lower:
+                hit = True
+                pos = lower.find(variant)
+                context = lower[max(0, pos - 70): min(len(lower), pos + len(variant) + 70)]
+                if any(marker in context for marker in avoid_markers):
+                    signals["avoid_exercises"].append(ex_id)
+                elif any(marker in context for marker in dislike_markers):
+                    signals["disliked_exercises"].append(ex_id)
+                elif any(marker in context for marker in like_markers):
+                    signals["favorite_exercises"].append(ex_id)
+                break
+        if hit:
+            continue
+    return signals
+
+
+def _merge_workout_profile(base, signals):
+    merged = {k: list(base.get(k) or []) for k in (
+        "favorite_exercises", "disliked_exercises", "avoid_exercises", "notes"
+    )}
+    for key in merged:
+        merged[key] = _dedupe(merged[key] + list(signals.get(key) or []), limit=40 if key != "notes" else 20)
+    return merged
+
+
+@app.get("/api/workout/profile")
+@login_required
+def get_workout_profile():
+    with db() as conn:
+        row = _workout_profile_row(conn)
+    return jsonify({"profile": _workout_profile_payload(row)})
+
+
+@app.put("/api/workout/profile")
+@login_required
+def update_workout_profile():
+    payload = request.get_json(silent=True) or {}
+    with db() as conn:
+        profile = _workout_profile_update(conn, payload)
+    return jsonify({"ok": True, "profile": profile})
+
+
+@app.post("/api/workout/feedback")
+@login_required
+def save_workout_feedback():
+    payload = request.get_json(silent=True) or {}
+    exercise_id = str(payload.get("exercise_id") or "").strip()[:120]
+    exercise = EXERCISES.get(exercise_id, {})
+    exercise_name = str(payload.get("exercise_name") or exercise.get("name") or exercise_id).strip()[:180]
+    action = str(payload.get("action") or "comment").strip().lower()[:40]
+    comment = str(payload.get("comment") or "").strip()[:500]
+
+    allowed = {"favorite", "dislike", "avoid", "comment", "replace", "complete"}
+    if action not in allowed:
+        return jsonify({"error": "Invalid feedback action"}), 400
+    if not exercise_id and action != "comment":
+        return jsonify({"error": "Exercise is required"}), 400
+
+    signals = {"favorite_exercises": [], "disliked_exercises": [], "avoid_exercises": [], "notes": []}
+    if action == "favorite" and exercise_id:
+        signals["favorite_exercises"].append(exercise_id)
+    elif action == "dislike" and exercise_id:
+        signals["disliked_exercises"].append(exercise_id)
+    elif action == "avoid" and exercise_id:
+        signals["avoid_exercises"].append(exercise_id)
+
+    if comment:
+        learned = _learn_workout_comment(comment)
+        for key in signals:
+            signals[key].extend(learned[key])
+
+    with db() as conn:
+        existing = _workout_profile_payload(_workout_profile_row(conn))
+        profile = _merge_workout_profile(existing, signals)
+        _workout_profile_update(conn, profile)
+        now = datetime.now(timezone.utc).isoformat()
+        if exercise_id:
+            conn.execute(
+                """INSERT INTO workout_feedback
+                   (user_id, exercise_id, exercise_name, action, comment, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (current_user_id(), exercise_id, exercise_name, action, comment, now),
+            )
+        elif comment:
+            conn.execute(
+                """INSERT INTO workout_feedback
+                   (user_id, exercise_id, exercise_name, action, comment, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (current_user_id(), "general", "General workout plan", "comment", comment, now),
+            )
+    return jsonify({"ok": True, "profile": profile, "created_at": now})
+
+
+@app.get("/api/workout/saved")
+@login_required
+def get_saved_workouts():
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT id, name, plan_json, is_favorite, created_at, updated_at
+               FROM workout_saved_plans
+               WHERE user_id = ?
+               ORDER BY is_favorite DESC, updated_at DESC LIMIT 50""",
+            (current_user_id(),),
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["plan"] = json.loads(item.pop("plan_json"))
+        except Exception:
+            item["plan"] = None
+        item["is_favorite"] = bool(item.get("is_favorite"))
+        items.append(item)
+    return jsonify({"saved": items})
+
+
+@app.post("/api/workout/saved")
+@login_required
+def save_workout():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "My Favorite Workout").strip()[:120]
+    plan = payload.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Invalid workout plan"}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    is_fav = 1 if payload.get("is_favorite") else 0
+    with db() as conn:
+        cur = conn.execute(
+            """INSERT INTO workout_saved_plans
+               (user_id, name, plan_json, is_favorite, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""" + (" RETURNING id" if conn.postgres else ""),
+            (current_user_id(), name, json.dumps(plan, ensure_ascii=False), is_fav, now, now),
+        )
+        saved_id = inserted_id(cur) if conn.postgres else cur.lastrowid
+    return jsonify({"ok": True, "id": int(saved_id), "name": name, "created_at": now}), 201
+
+
+@app.put("/api/workout/saved/<int:workout_id>")
+@login_required
+def update_saved_workout(workout_id):
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "My Saved Workout").strip()[:120]
+    plan = payload.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Invalid workout plan"}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    with db() as conn:
+        cur = conn.execute(
+            """UPDATE workout_saved_plans
+               SET name = ?, plan_json = ?, is_favorite = ?, updated_at = ?
+               WHERE id = ? AND user_id = ?""",
+            (name, json.dumps(plan, ensure_ascii=False),
+             1 if payload.get("is_favorite") else 0,
+             now, workout_id, current_user_id()),
+        )
+    if cur.rowcount == 0:
+        return jsonify({"error": "Saved workout not found"}), 404
+    return jsonify({"ok": True, "id": workout_id, "updated_at": now})
+
+
+@app.delete("/api/workout/saved/<int:workout_id>")
+@login_required
+def delete_saved_workout(workout_id):
+    with db() as conn:
+        cur = conn.execute(
+            "DELETE FROM workout_saved_plans WHERE id = ? AND user_id = ?",
+            (workout_id, current_user_id()),
+        )
+    if cur.rowcount == 0:
+        return jsonify({"error": "Saved workout not found"}), 404
     return jsonify({"ok": True})
 
 
