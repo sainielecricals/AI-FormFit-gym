@@ -489,6 +489,45 @@
     </main>
   </div>
 
+
+  <!-- FORMFIT MOBILE ACCOUNT SHEET — account UI only -->
+  <div class="account-sheet-overlay" id="accountSheetOverlay" aria-hidden="true">
+    <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="accountSheetTitle">
+      <div class="account-sheet-grabber" aria-hidden="true"></div>
+      <div class="account-sheet-head">
+        <div>
+          <span class="account-sheet-eyebrow">YOUR ACCOUNT</span>
+          <h2 id="accountSheetTitle">Account</h2>
+        </div>
+        <button class="account-sheet-close" id="accountSheetClose" type="button" aria-label="Close account">×</button>
+      </div>
+
+      <div class="account-profile">
+        <div class="account-sheet-avatar" id="accountSheetAvatar">U</div>
+        <div class="account-sheet-profile-copy">
+          <strong id="accountSheetEmail">Not signed in</strong>
+          <span>Personal FormFit account</span>
+        </div>
+      </div>
+
+      <div class="account-actions">
+        <button class="account-action account-action-secondary" id="accountSwitchBtn" type="button">
+          <span class="account-action-icon">⇄</span>
+          <span><strong>Login with another account</strong><small>Switch to a different FormFit account</small></span>
+          <b>›</b>
+        </button>
+
+        <button class="account-action account-action-danger" id="accountSignoutBtn" type="button">
+          <span class="account-action-icon">↪</span>
+          <span><strong>Sign out</strong><small>End this account session on this device</small></span>
+          <b>›</b>
+        </button>
+      </div>
+
+      <button class="account-sheet-cancel" id="accountSheetCancel" type="button">Cancel</button>
+    </section>
+  </div>
+
   <div class="auth-overlay" id="authOverlay">
     <div class="auth-card">
       <div class="auth-brand"><div class="brand-mark">F</div><div><strong>FORMFIT</strong><small>AI FITNESS COACH</small></div></div>
@@ -505,7 +544,13 @@
         <label>Email address</label>
         <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
         <label>Password</label>
-        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Minimum 8 characters" minlength="8" required>
+        <div class="password-field">
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Minimum 8 characters" minlength="8" required>
+          <button class="password-toggle" id="authPasswordToggle" type="button" aria-label="Show password" aria-pressed="false">
+            <span class="password-toggle-icon" aria-hidden="true">◉</span>
+            <span class="password-toggle-text">Show</span>
+          </button>
+        </div>
         <div class="auth-error" id="authError"></div>
         <button class="primary-btn big" id="authSubmit" type="submit">Login & continue →</button>
       </form>
@@ -556,8 +601,11 @@
 
   async function accountClick() {
     const data = await session();
-    if (data.authenticated) showHistory();
-    else showLogin();
+    if (data.authenticated) {
+      window.dispatchEvent(new CustomEvent("formfit:open-account"));
+    } else {
+      showLogin();
+    }
   }
 
   // Capture phase makes ACCOUNT work regardless of other UI listeners.
@@ -572,7 +620,7 @@
   // Professional first-visit auth gate.
   async function firstVisitGate() {
     const data = await session();
-    if (!data.authenticated) showLogin();
+    if (!data.authenticated && !window.__formfitAuthTransition) showLogin();
   }
 
   if (document.readyState === "loading") {
@@ -598,8 +646,28 @@
   const error = $("#authError");
   const email = $("#authEmail");
   const password = $("#authPassword");
+  const passwordToggle = $("#authPasswordToggle");
 
   let mode = "login";
+
+  function updatePasswordToggle() {
+    if (!password || !passwordToggle) return;
+    const shown = password.type === "text";
+    passwordToggle.setAttribute("aria-pressed", shown ? "true" : "false");
+    passwordToggle.setAttribute("aria-label", shown ? "Hide password" : "Show password");
+    const text = passwordToggle.querySelector(".password-toggle-text");
+    if (text) text.textContent = shown ? "Hide" : "Show";
+    const icon = passwordToggle.querySelector(".password-toggle-icon");
+    if (icon) icon.textContent = shown ? "◉" : "◌";
+  }
+
+  passwordToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (!password) return;
+    password.type = password.type === "password" ? "text" : "password";
+    updatePasswordToggle();
+    password.focus();
+  });
 
   function setMode(nextMode) {
     mode = nextMode === "register" ? "register" : "login";
@@ -683,6 +751,7 @@
     }
 
     try {
+      window.__formfitAuthTransition = true;
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -697,17 +766,29 @@
 
       if (!response.ok) {
         if (error) {
-          error.textContent =
-            data.error ||
-            (mode === "register"
-              ? "Could not create account."
-              : "Incorrect email or password.");
+          if (response.status === 409 && mode === "register") {
+            error.textContent = "An account with this email already exists. Switch to Login.";
+          } else {
+            error.textContent =
+              data.error ||
+              (mode === "register"
+                ? "Could not create account. Please try again."
+                : "Incorrect email or password.");
+          }
         }
         return;
       }
 
+      // Login/register is complete. Always return to the main website view
+      // instead of leaving the user on an auth overlay/hash.
+      if (typeof showView === "function") {
+        showView("home");
+      } else {
+        window.location.hash = "";
+      }
+
       if (overlay) {
-        overlay.classList.remove("visible");
+        overlay.classList.remove("visible", "open");
         overlay.setAttribute("aria-hidden", "true");
       }
 
@@ -731,6 +812,7 @@
           "Server connection failed. Make sure the FormFit server is running.";
       }
     } finally {
+      window.__formfitAuthTransition = false;
       if (submit) {
         submit.disabled = false;
         submit.textContent =
@@ -793,6 +875,115 @@
   } else {
     syncAuthUI();
   }
+})();
+</script>
+
+
+<script data-formfit-mobile-account="1">
+/* FORMFIT MOBILE ACCOUNT SHEET
+   Account UI/session actions only. Does not touch camera, pose, pipes, exercises or scoring. */
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const overlay = $("#accountSheetOverlay");
+  const emailEl = $("#accountSheetEmail");
+  const avatarEl = $("#accountSheetAvatar");
+  const accountEmail = $("#accountEmail");
+  const accountAvatar = $("#accountAvatar");
+  const authOverlay = $("#authOverlay");
+  if (!overlay) return;
+
+  function syncProfile() {
+    const email = (accountEmail?.textContent || "").trim();
+    const avatar = (accountAvatar?.textContent || "U").trim() || "U";
+    if (emailEl) emailEl.textContent = email || "Not signed in";
+    if (avatarEl) avatarEl.textContent = avatar.charAt(0).toUpperCase();
+  }
+
+  function openSheet() {
+    syncProfile();
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    document.body.classList.add("account-sheet-open");
+  }
+
+  function closeSheet() {
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("account-sheet-open");
+  }
+
+  function openLogin() {
+    closeSheet();
+    if (authOverlay) {
+      authOverlay.classList.add("visible");
+      authOverlay.classList.add("open");
+      authOverlay.setAttribute("aria-hidden", "false");
+      const title = $("#authTitle");
+      const subtitle = $("#authSubtitle");
+      if (title) title.textContent = "Welcome back.";
+      if (subtitle) subtitle.textContent = "Sign in with the account you want to use.";
+      const email = $("#authEmail");
+      const password = $("#authPassword");
+      if (email) { email.value = ""; email.focus(); }
+      if (password) password.value = "";
+      const error = $("#authError");
+      if (error) error.textContent = "";
+    }
+  }
+
+  async function signOut() {
+    const btn = $("#accountSignoutBtn");
+    if (btn) btn.disabled = true;
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+    } catch (_) {}
+    try {
+      if (typeof window.stopFormSession === "function") window.stopFormSession();
+    } catch (_) {}
+
+    if (accountEmail) accountEmail.textContent = "Not signed in";
+    if (accountAvatar) accountAvatar.textContent = "U";
+    syncProfile();
+    closeSheet();
+    openLogin();
+    if (btn) btn.disabled = false;
+  }
+
+  window.addEventListener("formfit:open-account", openSheet);
+
+  $("#accountSheetClose")?.addEventListener("click", closeSheet);
+  $("#accountSheetCancel")?.addEventListener("click", closeSheet);
+  $("#accountSwitchBtn")?.addEventListener("click", async () => {
+    // Switching accounts first ends the current session, then opens the existing login UI.
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+    } catch (_) {}
+    if (accountEmail) accountEmail.textContent = "Not signed in";
+    if (accountAvatar) accountAvatar.textContent = "U";
+    openLogin();
+  });
+  $("#accountSignoutBtn")?.addEventListener("click", signOut);
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeSheet();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && overlay.classList.contains("open")) closeSheet();
+  });
+
+  // Keep the sheet profile synchronized if the existing auth UI updates the account.
+  const profileObserver = new MutationObserver(syncProfile);
+  if (accountEmail) profileObserver.observe(accountEmail, {childList:true, characterData:true, subtree:true});
+  if (accountAvatar) profileObserver.observe(accountAvatar, {childList:true, characterData:true, subtree:true});
 })();
 </script>
 
