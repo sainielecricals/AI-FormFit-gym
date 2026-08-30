@@ -46,6 +46,11 @@ const visual = {
   pipeStatusByKey: new Map()
 };
 
+// Face-to-shoulder lines are structural reference guides, not exercise
+// form checks. Keep these two pipes neutral so unrelated form errors cannot
+// turn the face guide red.
+const FACE_GUIDE_SEGMENTS = new Set(["0:11", "0:12"]);
+
 const LIVE_SEGMENTS = [
   [0, 11], [0, 12], [11, 12],
   [11, 13], [13, 15],
@@ -97,7 +102,6 @@ const PREMAPPED_DEMOS = {
   "jumping_jack": { id: "uLVt6u15L98", source: "Jumping Jack reference" },
   "bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
   "deadlift": { id: "Z6gcRfPNcZo", source: "NASM • Deadlift" },
-  "front_raise": { id: "c7zMmbWkUPw", source: "Shoulder raise reference" },
   "hammer_curl": { id: "TwD-YGVP4Bk", source: "Howcast • Hammer Curl" },
   "calf_raise": { id: "1lKjFPrYqf0", source: "BarBend • Calf Raise" },
   "glute_bridge": { id: "sh63qy5EV_8", source: "BarBend • Glute Bridge" },
@@ -107,150 +111,61 @@ const PREMAPPED_DEMOS = {
   "step_up": { id: "URHdW9js6DM", source: "NASM • Step Up" },
   "reverse_lunge": { id: "lKhZvT_NkOs", source: "NASM • Reverse Lunge" },
   "chest_fly": { id: "mLgYNdxj-Vw", source: "Jeremy Ethier • Chest Fly" },
-  "incline_dumbbell_press": { id: "WLTU1j7Ur8M", source: "BarBend • Dumbbell Bench Press" },
-  "decline_bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
-  "incline_bench_press": { id: "Zw6qCAFsV0w", source: "BarBend • Bench Press" },
   "dumbbell_bench_press": { id: "WLTU1j7Ur8M", source: "BarBend • Dumbbell Bench Press" },
-  "close_grip_bench_press": { id: "Zfi0cIJi6c", source: "BarBend • Close-Grip Incline Press" },
-  "push_up_wide_grip": { id: "WDIpL0pjun0", source: "Push-Up reference" },
-  "push_up_diamond": { id: "WDIpL0pjun0", source: "Push-Up reference" },
-  "incline_push_up": { id: "WDIpL0pjun0", source: "Push-Up reference" },
-  "decline_push_up": { id: "WDIpL0pjun0", source: "Push-Up reference" },
   "chest_press_machine": { id: "2y6ntGVg4dw", source: "BarBend • Chest Press Machine" },
-  "cable_crossover": { id: "8Um35Es-ROE", source: "BarBend • Cable Fly" },
-  "low_cable_crossover": { id: "8Um35Es-ROE", source: "BarBend • Cable Fly" },
   "lat_pulldown": { id: "SALxEARiMkw", source: "ATHLEAN-X • Lat Pulldown" },
-  "close_grip_lat_pulldown": { id: "SALxEARiMkw", source: "ATHLEAN-X • Lat Pulldown" },
+  "front_raise": { id: "-t7fuZ0KhDA", source: "ScottHermanFitness • Dumbbell Front Raise" },
+  "incline_dumbbell_press": { id: "oZVCBM9f8Eo", source: "PureGym • Incline Dumbbell Press" },
+  "decline_bench_press": { id: "OR6WM5Z2Hqs", source: "Instructional Fitness • Decline Bench Press" },
+  "incline_bench_press": { id: "dtNXLavPFo0", source: "Howcast • Incline Bench Press" },
+  "close_grip_bench_press": { id: "LJeqLAmJLfs", source: "NASM • Close Grip Bench Press" },
+  "push_up_wide_grip": { id: "rr6eFNNDQdU", source: "Howcast • Wide Grip Push-Up" },
+  "push_up_diamond": { id: "VegSR9wWJKo", source: "Diamond Push-Up demonstration" },
+  "incline_push_up": { id: "bXsbK9UPu3c", source: "Howcast • Incline Push-Up" },
+  "decline_push_up": { id: "DBz85WuXqMk", source: "NASM • Decline Push-Up" },
+  "cable_crossover": { id: "QcTcWpkn_bw", source: "PureGym • Cable Fly / Cable Crossover" },
+  "low_cable_crossover": { id: "1DZGgdUvqLE", source: "OriGym • Low Cable Crossover" },
+  "close_grip_lat_pulldown": { id: "IjoFCmLX7z0", source: "PureGym • Close Grip Lat Pulldown" },
 
   // BATCH 2 DEMOS — every newly enabled exercise gets a visible reference.
   // Exact demonstrations are used where a verified video is available;
   // closely related movement references are used only for the visual demo card.
-  "straight_arm_pulldown": { id: "SALxEARiMkw", source: "ATHLEAN-X • Lat Pulldown reference" },
-  "seated_cable_row": { id: "roCP6wCXPqo", source: "Dumbbell Row • pulling reference" },
+  "seated_cable_row": { id: "xQNrFHEMhI4", source: "Bodybuilding.com • Seated Cable Row Exercise Guide" },
   "chest_supported_row": { id: "H75im9fAUMc", source: "Men's Health • Chest-Supported Row" },
-  "barbell_row": { id: "roCP6wCXPqo", source: "Dumbbell Row • rowing reference" },
-  "pendlay_row": { id: "KDEl3AmZbVE", source: "Bodybuilding.com • Row reference" },
-  "t_bar_row": { id: "KDEl3AmZbVE", source: "Bodybuilding.com • T-Bar Row" },
-  "single_arm_dumbbell_row": { id: "roCP6wCXPqo", source: "Dumbbell Row reference" },
+  "barbell_row": { id: "_hDxEomiZHw", source: "Barbell Medicine • Barbell Row" },
+  "pendlay_row": { id: "n5OTM3vra8c", source: "OriGym • Pendlay Row Exercise Demo" },
+  "t_bar_row": { id: "vC4GP1Z67nY", source: "Live Lean TV • T-Bar Row Exercise Demo" },
   "machine_row": { id: "k0cTJCfxa0Y", source: "NASM • Seated Machine Row" },
-  "reverse_fly": { id: "mLgYNdxj-Vw", source: "Chest Fly • reverse-fly movement reference" },
-  "face_pull": { id: "eTCBSFlCJ_s", source: "NASM • Face Pull" },
-  "back_extension": { id: "DDJtB8Zgyow", source: "Howcast • Back Extension" },
-  "good_morning": { id: "Z6gcRfPNcZo", source: "NASM • Hip-hinge reference" },
-  "arnold_press": { id: "fRPzHslb9XU", source: "Shoulder Press reference" },
-  "dumbbell_shoulder_press": { id: "fRPzHslb9XU", source: "Shoulder Press reference" },
+  "reverse_fly": { id: "-KOrszUkwIU", source: "Reverse Fly Machine Exercise Demo" },
+  "face_pull": { id: "w-RctWbFNGc", source: "OriGym • Face Pull Exercise Demo" },
+  "back_extension": { id: "DotOl9P4TE8", source: "OriGym • Back Extension Exercise Demo" },
   "barbell_overhead_press": { id: "cGnhixvC8uA", source: "NASM • Barbell Overhead Press" },
-  "machine_shoulder_press": { id: "fRPzHslb9XU", source: "Shoulder Press reference" },
-  "rear_delt_fly": { id: "mLgYNdxj-Vw", source: "Rear-Delt movement reference" },
-  "cable_lateral_raise": { id: "c7zMmbWkUPw", source: "Lateral Raise reference" },
+  "rear_delt_fly": { id: "-KOrszUkwIU", source: "Reverse Fly / Rear-Delt Exercise Demo" },
+  "cable_lateral_raise": { id: "mAwCSJPCc7w", source: "OriGym • Cable Lateral Raise Exercise Demo" },
   "cable_front_raise": { id: "vtH93qBItdk", source: "PureGym • Cable Front Raise" },
-  "upright_row": { id: "c7zMmbWkUPw", source: "Shoulder Raise reference" },
-  "plate_front_raise": { id: "c7zMmbWkUPw", source: "Front Raise reference" },
-  "leaning_lateral_raise": { id: "c7zMmbWkUPw", source: "Lateral Raise reference" },
-  "tricep_pushdown": { id: "_gsUck-7M74", source: "Tricep Extension reference" },
-  "rope_tricep_pushdown": { id: "_gsUck-7M74", source: "Tricep Extension reference" },
-  "overhead_cable_tricep_extension": { id: "_gsUck-7M74", source: "Tricep Extension reference" },
 
   // BATCH 3 DEMOS — movement-specific reference cards. The biceps video contains
   // the named curl variants; lower-body entries use dedicated squat/leg videos.
-  "alternating_dumbbell_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Alternating Curl" },
-  "concentration_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Concentration Curl" },
-  "preacher_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Preacher Curl" },
-  "ez_bar_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • EZ-Bar Curl" },
-  "barbell_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Barbell Curl" },
-  "cable_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Cable Curl" },
-  "incline_dumbbell_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Incline Dumbbell Curl" },
-  "spider_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Spider Curl" },
-  "zottman_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Zottman Curl" },
-  "reverse_curl": { id: "hAZSfGUFZh4", source: "Biceps Exercise Guide • Reverse Curl" },
-  "skull_crusher": { id: "_gsUck-7M74", source: "Tricep Extension reference" },
-  "close_grip_push_up": { id: "WDIpL0pjun0", source: "Push-Up reference • Close-Grip variation" },
-  "bench_dip": { id: "_gsUck-7M74", source: "Tricep Extension reference • Triceps movement" },
-  "parallel_bar_dip": { id: "_gsUck-7M74", source: "Tricep Extension reference • Triceps movement" },
-  "dumbbell_kickback": { id: "_gsUck-7M74", source: "Tricep Extension reference • Triceps movement" },
-  "cable_kickback": { id: "_gsUck-7M74", source: "Tricep Extension reference • Triceps movement" },
   "leg_press": { id: "CHPHn-OnTqE", source: "Leg Press form reference" },
   "hack_squat": { id: "KDFzmSLDN0s", source: "BarBend • Hack Squat" },
-  "front_squat": { id: "sbBxvzHwzFU", source: "Squat form reference • Front Squat family" },
   "goblet_squat": { id: "7-LTkLLQqe0", source: "Goblet Squat reference" },
   "bulgarian_split_squat": { id: "hbw7hdyOpq0", source: "NASM • Bulgarian Split Squat" },
-  "romanian_deadlift": { id: "Z6gcRfPNcZo", source: "NASM • Deadlift / hip-hinge reference" },
-  "stiff_leg_deadlift": { id: "Z6gcRfPNcZo", source: "NASM • Deadlift / hip-hinge reference" },
-  "leg_extension": { id: "OOsb9DNs8dI", source: "Leg training reference" },
-  "leg_curl": { id: "OOsb9DNs8dI", source: "Leg training reference" },
-  "seated_leg_curl": { id: "OOsb9DNs8dI", source: "Leg training reference" },
-  "nordic_hamstring_curl": { id: "QC2WFQMVsnc", source: "Hamstring / lower-body reference" },
   "walking_lunge": { id: "L8fvypPrzzs", source: "Walking Lunge reference" },
   "curtsy_lunge": { id: "cVYnf2CFO9M", source: "Curtsy Lunge reference" },
   "lateral_lunge": { id: "KokacN8lmp8", source: "Lateral Lunge reference" },
-  "box_squat": { id: "QC2WFQMVsnc", source: "Box Squat reference" },
   "wall_sit": { id: "JaZNYM3zAP0", source: "Well+Good • Wall Sit" },
-  "sissy_squat": { id: "OOsb9DNs8dI", source: "Leg training reference" },
   "hip_thrust": { id: "QC2WFQMVsnc", source: "Hip Thrust reference" },
-  "barbell_hip_thrust": { id: "QC2WFQMVsnc", source: "Barbell Hip Thrust reference" },
-  "cable_pull_through": { id: "QC2WFQMVsnc", source: "Hip-hinge / glute reference" },
-  "donkey_kick": { id: "QC2WFQMVsnc", source: "Donkey Kick reference" },
-  "fire_hydrant": { id: "QC2WFQMVsnc", source: "Fire Hydrant reference" },
-  "clamshell": { id: "QC2WFQMVsnc", source: "Clamshell reference" },
-  "frog_pump": { id: "QC2WFQMVsnc", source: "Frog Pump reference" },
   // BATCH 5 DEMOS — exact references where verified; otherwise closest same-exercise-family demo is explicitly labelled.
   "high_cable_crossover": { id: "hTCFi9VM1SU", source: "OriGym • High Cable Fly" },
-  "pec_deck": { id: "mLgYNdxj-Vw", source: "Chest Fly / Pec Deck movement reference" },
-  "dumbbell_pullover": { id: "WLTU1j7Ur8M", source: "Dumbbell Pullover reference" },
-  "svend_press": { id: "Zw6qCAFsV0w", source: "Svend Press reference" },
   "pull_up": { id: "9yVGh3XbJ34", source: "NASM • Pull-Up" },
-  "chin_up": { id: "9yVGh3XbJ34", source: "Pull-Up / Chin-Up movement reference" },
-  "assisted_pull_up": { id: "9yVGh3XbJ34", source: "Pull-Up / Assisted Pull-Up movement reference" },
-  "banded_glute_bridge": { id: "sh63qy5EV_8", source: "Glute Bridge reference" },
-  "crunch": { id: "1fbU_MkV7NE", source: "Crunch / Sit-Up movement reference" },
-  "bicycle_crunch": { id: "1fbU_MkV7NE", source: "Core Crunch movement reference" },
-  "reverse_crunch": { id: "1fbU_MkV7NE", source: "Core Crunch movement reference" },
-  "leg_raise": { id: "1fbU_MkV7NE", source: "Core Leg-Raise movement reference" },
-  "hanging_leg_raise": { id: "1fbU_MkV7NE", source: "Core Leg-Raise movement reference" },
-  "knee_raise": { id: "1fbU_MkV7NE", source: "Core Knee-Raise movement reference" },
-  "russian_twist": { id: "1fbU_MkV7NE", source: "Core movement reference" },
   "dead_bug": { id: "vtiJ5tDM4fo", source: "Dead Bug exercise" },
   "bird_dog": { id: "QABW99qPiNM", source: "Muscle & Motion • Bird Dog" },
-  "hollow_body_hold": { id: "1fbU_MkV7NE", source: "Core hold movement reference" },
-  "v_up": { id: "1fbU_MkV7NE", source: "Core V-Up movement reference" },
-  "flutter_kick": { id: "1fbU_MkV7NE", source: "Core leg movement reference" },
 
   // BATCH 6 DEMOS — every final exercise now has a visible reference.
-  "heel_touch": { id: "1fbU_MkV7NE", source: "Core movement reference" },
-  "side_plank": { id: "mwlp75MS6Rg", source: "NASM • Plank / Side Plank reference" },
-  "pallof_press": { id: "fRPzHslb9XU", source: "Core stability reference" },
-  "seated_calf_raise": { id: "1lKjFPrYqf0", source: "Calf Raise reference" },
-  "standing_calf_raise": { id: "1lKjFPrYqf0", source: "Calf Raise reference" },
-  "donkey_calf_raise": { id: "1lKjFPrYqf0", source: "Calf Raise reference" },
-  "single_leg_calf_raise": { id: "1lKjFPrYqf0", source: "Calf Raise reference" },
-  "kettlebell_swing": { id: "Z6gcRfPNcZo", source: "Hip-hinge reference" },
-  "thruster": { id: "OOsb9DNs8dI", source: "Squat / Thruster movement reference" },
-  "clean_and_press": { id: "fRPzHslb9XU", source: "Press movement reference" },
-  "kettlebell_clean": { id: "Z6gcRfPNcZo", source: "Hip-hinge movement reference" },
-  "bear_crawl": { id: "mwlp75MS6Rg", source: "Core stability reference" },
-  "inchworm": { id: "mwlp75MS6Rg", source: "Core stability reference" },
-  "man_maker": { id: "mUYJqe_sJFE", source: "Burpee movement reference" },
-  "turkish_get_up": { id: "mwlp75MS6Rg", source: "Full-body stability reference" },
-  "high_knees": { id: "uLVt6u15L98", source: "Cardio movement reference" },
-  "butt_kicks": { id: "uLVt6u15L98", source: "Cardio movement reference" },
-  "skater_jumps": { id: "L8fvypPrzzs", source: "Lunge / lateral-leg reference" },
-  "jump_squat": { id: "OOsb9DNs8dI", source: "Squat / jump-squat reference" },
-  "box_jump": { id: "URHdW9js6DM", source: "Step-up / box movement reference" },
-  "tuck_jump": { id: "OOsb9DNs8dI", source: "Squat / jump reference" },
-  "lateral_shuffle": { id: "L8fvypPrzzs", source: "Lateral-leg movement reference" },
-  "shadow_boxing": { id: "WDIpL0pjun0", source: "Upper-body movement reference" },
-  "world_s_greatest_stretch": { id: "DDJtB8Zgyow", source: "Mobility / movement reference" },
-  "cat_cow": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "thoracic_rotation": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "hip_flexor_stretch": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "hamstring_stretch": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "quad_stretch": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "child_s_pose": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "downward_dog": { id: "DDJtB8Zgyow", source: "Mobility reference" },
-  "shoulder_dislocates": { id: "c7zMmbWkUPw", source: "Shoulder mobility reference" },
-  "ankle_dorsiflexion": { id: "DDJtB8Zgyow", source: "Lower-body mobility reference" },
 };
 
+// LEGACY FALLBACK POOLS ARE RETAINED FOR BACKWARD COMPATIBILITY ONLY.
+// getReferenceCandidates() intentionally does not use them.
 // Candidate pools are only for the reference-video card.
 // When a creator disables embedding, retires a video, or YouTube reports
 // an iframe/player error, the next candidate is tried automatically.
@@ -356,10 +271,12 @@ function dedupeVideoCandidates(items) {
 }
 
 function getReferenceCandidates(exercise) {
+  // STRICT EXERCISE MATCHING: never fall back to a different exercise.
+  // A generic muscle-group video is worse than showing no demo because it
+  // teaches the user the wrong movement. Only the explicitly mapped video
+  // for the selected exercise may be displayed.
   const primary = PREMAPPED_DEMOS[exercise?.id];
-  const poolName = VIDEO_POOL_BY_EXERCISE[exercise?.id];
-  const pool = VIDEO_FALLBACK_POOLS[poolName] || [];
-  return dedupeVideoCandidates([primary, ...pool]);
+  return primary?.id ? [primary] : [];
 }
 
 function loadYouTubeIframeAPI() {
@@ -2108,6 +2025,46 @@ function drawPoseResult(data) {
   visual.message = data.message || "";
   visual.lastView = data.view || visual.lastView || "";
 
+  // HARD UI/PIPE CONSISTENCY GUARD:
+  // If the exercise-level AI decision is RED but the backend did not provide
+  // a usable segment-level RED pipe, never leave the live skeleton green.
+  // Likewise, a global GREEN/YELLOW result must not inherit a stale RED state.
+  // This changes only the rendered pipe status; geometry and smoothing stay
+  // exactly as before.
+  const apiPipes = Array.isArray(data.pipes) ? data.pipes : [];
+  const hasExplicitRed = apiPipes.some(
+    pipe => String(pipe?.status || "").toLowerCase() === "red"
+  );
+  const fallbackStatus = currentStatus === "red"
+    ? "red"
+    : currentStatus === "green"
+      ? "green"
+      : "yellow";
+
+  if (currentStatus === "red" && !hasExplicitRed) {
+    visual.pipeStatusByKey = new Map(
+      [...visual.pipeStatusByKey.entries()].map(([key]) => [key, "red"])
+    );
+    visual.liveSegments = visual.liveSegments.map(seg => ({
+      ...seg,
+      status: "red"
+    }));
+  } else if (!apiPipes.length) {
+    visual.pipeStatusByKey = new Map(
+      [...visual.pipeStatusByKey.keys()].map(key => [key, fallbackStatus])
+    );
+    visual.liveSegments = visual.liveSegments.map(seg => ({
+      ...seg,
+      status: fallbackStatus
+    }));
+  }
+
+  if (Array.isArray(visual.pipes) && visual.pipes.length) {
+    if (currentStatus === "red" && !hasExplicitRed) {
+      visual.pipes = visual.pipes.map(pipe => ({ ...pipe, status: "red" }));
+    }
+  }
+
   // IMPORTANT:
   // Rendering happens continuously with requestAnimationFrame,
   // while API frames arrive more slowly.
@@ -2533,10 +2490,17 @@ function updatePipeStatusMap(apiPipes, landmarks) {
 
     if (ia < 0 || ib < 0 || ia === ib) continue;
 
+    const key = segmentKey(ia, ib);
+    // Never use exercise-specific form status for the two face guide pipes.
+    if (FACE_GUIDE_SEGMENTS.has(key)) {
+      next.set(key, "green");
+      continue;
+    }
+
     const status = String(pipe.status ?? "green").trim().toLowerCase();
     if (!["green", "yellow", "red"].includes(status)) continue;
 
-    next.set(segmentKey(ia, ib), status);
+    next.set(key, status);
   }
 
   visual.pipeStatusByKey = next;
@@ -2556,14 +2520,19 @@ function updateLivePose(landmarks) {
   visual.liveLandmarks = landmarks;
   visual.liveLandmarkTime = now;
 
-  // Build only the anatomical segments that the current AI response has
-  // identified. That preserves the existing visual scope of each exercise.
+  // Keep the live geometry smooth, but NEVER default an exercise pipe to
+  // green when the latest AI decision is red. The API's exercise-specific
+  // decision is the source of truth for visible form status.
+  const frameStatus = ["green", "yellow", "red"].includes(visual.status)
+    ? visual.status
+    : "yellow";
+
   if (!visual.liveSegments.length) {
     visual.liveSegments = LIVE_SEGMENTS.map(([a, b]) => ({
       aIndex: a,
       bIndex: b,
       key: segmentKey(a, b),
-      status: visual.pipeStatusByKey.get(segmentKey(a, b)) || "green"
+      status: visual.pipeStatusByKey.get(segmentKey(a, b)) || frameStatus
     }));
   }
 
@@ -2580,7 +2549,12 @@ function updateLivePose(landmarks) {
     .map(seg => ({
       a: { x: Number(landmarks[seg.aIndex].x), y: Number(landmarks[seg.aIndex].y) },
       b: { x: Number(landmarks[seg.bIndex].x), y: Number(landmarks[seg.bIndex].y) },
-      status: visual.pipeStatusByKey.get(seg.key) || seg.status || "green",
+      // Explicit API segment status wins. If no segment-specific status was
+      // returned, inherit the current exercise-level decision instead of
+      // silently falling back to green.
+      status: FACE_GUIDE_SEGMENTS.has(seg.key)
+        ? "green"
+        : (visual.pipeStatusByKey.get(seg.key) || seg.status || frameStatus),
       key: seg.key
     }));
 }
