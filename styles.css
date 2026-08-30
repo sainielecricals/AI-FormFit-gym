@@ -1015,3 +1015,318 @@ nav{display:grid;gap:7px}.nav-item{border:1px solid transparent;background:trans
 .winter-arc-hero h2{font:800 42px/1.04 Manrope;margin:14px 0;color:#fff;letter-spacing:-1px}.winter-arc-hero h2 em{font-style:normal;color:var(--accent)}.winter-arc-hero p{max-width:760px;color:#9fb1b5;line-height:1.7}.winter-arc-badge{border:1px solid #35575b;border-radius:18px;background:#081216;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.winter-arc-badge span{font-size:9px;letter-spacing:2px;color:#789095;font-weight:800}.winter-arc-badge strong{font:800 48px/1 Manrope;color:var(--accent);margin:10px 0 3px}.winter-arc-badge small{font-size:11px;color:#9fb1b5}.winter-arc-grid{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:13px;margin-top:14px}.winter-info-card{background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:22px}.winter-info-card h3{margin:8px 0 10px;font:800 21px Manrope}.winter-info-card p{color:var(--muted);line-height:1.65;font-size:13px}.winter-principles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.winter-principles div{background:#0b171c;border:1px solid #20363d;border-radius:12px;padding:13px}.winter-principles b{display:block;color:var(--text);margin-bottom:5px}.winter-principles span{color:#81969a;font-size:12px;line-height:1.45}.winter-list{margin:14px 0 0;padding:0 0 0 18px;color:#a7b8bb;font-size:12px;line-height:1.8}.winter-list.good li::marker{color:var(--accent)}.winter-list.bad li::marker{color:#ff6e6e}.winter-builder{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:25px}.winter-form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.winter-equipment-block{margin-top:20px}.winter-habits{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:20px 0;padding:16px;border:1px solid #20363d;border-radius:13px;background:#0b171c}.winter-habits>div{grid-column:1/-1;margin-bottom:2px}.winter-habits>div b{display:block}.winter-habits>div span{font-size:11px;color:#71888d}.winter-habits label{font-size:12px;color:#9fb1b5}.winter-habits input{width:auto;margin-right:7px}.winter-result{margin-top:14px;display:grid;gap:12px}.winter-plan-head{display:flex;justify-content:space-between;gap:18px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:22px}.winter-plan-head h3{font:800 24px Manrope;margin:7px 0}.winter-plan-head p{color:var(--muted);font-size:12px}.winter-score-box{min-width:105px;text-align:center;border:1px solid #2b4b50;background:#0a1519;border-radius:13px;padding:12px}.winter-score-box span{font-size:9px;letter-spacing:1.3px;color:#789095}.winter-score-box strong{display:block;font:800 30px Manrope;color:var(--accent);margin-top:5px}.winter-output-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.winter-output-card{background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:20px}.winter-output-card h4{font:800 18px Manrope;margin:8px 0}.winter-output-card p{font-size:12px;line-height:1.65;color:var(--muted);min-height:74px}.winter-arc-note{border:1px solid #3c4330;background:#171a10;border-radius:12px;padding:13px 15px;color:#b9ba9d;font-size:12px;line-height:1.6}.winter-arc-note strong{color:#e7e8c9}
 @media(max-width:1000px){.winter-arc-grid,.winter-output-grid{grid-template-columns:1fr}.winter-form-grid{grid-template-columns:1fr 1fr}.winter-arc-hero{grid-template-columns:1fr 130px}}
 @media(max-width:700px){.winter-arc-hero{grid-template-columns:1fr;padding:22px}.winter-arc-hero h2{font-size:34px}.winter-arc-badge{min-height:130px}.winter-principles,.winter-form-grid,.winter-habits{grid-template-columns:1fr}.winter-habits>div{grid-column:auto}.winter-plan-head{align-items:flex-start;flex-direction:column}}
+
+/* ============================================================
+   FORMFIT MOBILE V1
+   UI-only responsive layer.
+   IMPORTANT: no form/pose/camera JavaScript is changed here.
+   ============================================================ */
+
+@media (max-width: 700px) {
+  html, body {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  body {
+    padding-bottom: 68px;
+  }
+
+  .app-shell {
+    min-height: 100vh;
+    display: block;
+  }
+
+  /* Compact bottom navigation; existing data-view buttons keep working. */
+  .sidebar {
+    width: 100%;
+    height: 64px;
+    padding: 6px 8px;
+    inset: auto 0 0 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    background: rgba(5, 14, 18, .96);
+    backdrop-filter: blur(14px);
+    display: block;
+    z-index: 100;
+  }
+
+  .sidebar .brand,
+  .sidebar .sidebar-card,
+  .sidebar .account-card,
+  .sidebar .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar nav {
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .sidebar nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    flex: 0 0 56px;
+    min-width: 56px;
+    height: 50px;
+    padding: 0;
+    justify-content: center;
+    text-align: center;
+    border-radius: 10px;
+    font-size: 19px;
+  }
+
+  .nav-item span {
+    display: none;
+  }
+
+  .nav-item.active {
+    box-shadow: inset 0 3px var(--accent);
+  }
+
+  .main {
+    width: 100%;
+    margin-left: 0;
+    padding: 14px 12px 28px;
+  }
+
+  .topbar {
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    align-items: center;
+  }
+
+  .topbar h1 {
+    font-size: 21px;
+    line-height: 1.15;
+  }
+
+  .top-actions {
+    display: none;
+  }
+
+  .account-btn {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    font-size: 9px;
+  }
+
+  .hero {
+    min-height: 0;
+    display: block;
+    border-radius: 19px;
+  }
+
+  .hero-copy {
+    padding: 25px 20px;
+  }
+
+  .hero h2 {
+    font-size: 34px;
+    line-height: 1.05;
+  }
+
+  .hero p {
+    font-size: 13px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .big {
+    width: 100%;
+  }
+
+  .hero-visual {
+    min-height: 255px;
+  }
+
+  .pose-card {
+    transform: scale(.82);
+  }
+
+  .stats-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 25px;
+  }
+
+  .stat-card {
+    padding: 13px;
+  }
+
+  .stat-card strong {
+    font-size: 22px;
+  }
+
+  .feature-grid,
+  .exercise-grid,
+  .form-checker,
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* Form checker: camera first, then coaching, then metrics/demo. */
+  #formView .form-topline {
+    align-items: flex-start;
+  }
+
+  #formView .form-title-wrap {
+    display: block;
+  }
+
+  #formView .form-title-wrap h2 {
+    font-size: 27px;
+    line-height: 1.08;
+    margin-top: 7px;
+  }
+
+  #formView .run-pill {
+    padding: 8px 10px;
+    font-size: 9px;
+  }
+
+  #formView .form-session-bar {
+    padding: 11px 12px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  #formView .form-main-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  #formView .form-camera-card {
+    order: 1;
+    min-height: 0;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  #formView .form-camera-card .camera-placeholder {
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 3 / 4;
+    padding: 20px 14px;
+  }
+
+  #formView .form-camera-card .camera-placeholder video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #formView .form-coaching-card {
+    order: 2;
+    min-height: 0;
+    padding: 15px;
+    border-radius: 16px;
+  }
+
+  #formView .form-left-metrics {
+    order: 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  #formView .form-left-metrics .premapped-demo-card,
+  #formView .form-left-metrics .guide-card {
+    grid-column: 1 / -1;
+  }
+
+  #formView .form-left-metrics .metric-card {
+    min-height: 112px;
+    padding: 12px 8px;
+  }
+
+  #formView .form-left-metrics .score-card {
+    min-height: 145px;
+  }
+
+  #formView .form-left-metrics .score-ring {
+    width: 76px;
+    height: 76px;
+  }
+
+  #formView .premapped-demo-frame {
+    min-height: 250px;
+    max-height: none;
+    aspect-ratio: 9 / 16;
+  }
+
+  #formView .premapped-demo-card {
+    padding: 10px;
+  }
+
+  #formView .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #formView .tip-strip {
+    align-items: flex-start;
+  }
+
+  #formView .tip-strip b {
+    font-size: 11px;
+  }
+
+  .choice-grid,
+  .meal-choice-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .winter-arc-hero {
+    padding: 20px;
+  }
+
+  .winter-arc-hero h2 {
+    font-size: 31px;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .main {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .nav-item {
+    flex-basis: 52px;
+    min-width: 52px;
+  }
+
+  .stats-row,
+  #formView .form-left-metrics,
+  #formView .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #formView .form-left-metrics .premapped-demo-card,
+  #formView .form-left-metrics .guide-card {
+    grid-column: auto;
+  }
+
+  .premapped-demo-frame {
+    min-height: 225px;
+  }
+}
+
