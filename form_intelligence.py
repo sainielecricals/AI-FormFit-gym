@@ -5,6 +5,8 @@ engine, exercise selection, or UI. It only adds explainable issues and
 exercise-specific recommendations to an existing FormResult.
 """
 import math
+import json
+from pathlib import Path
 import pose_engine as e
 import exercise_form_knowledge_v3 as knowledge
 
@@ -292,6 +294,217 @@ def _add_position_guides(result, exercise, landmarks, width, height):
             _target(result, shoulder, desired, "HINGE FORWARD")
 
 
+# ============================================================
+# EXPANDED EXERCISE KNOWLEDGE + VISUAL CORRECTION LAYER
+# ============================================================
+# This layer is deliberately additive. It never changes the core verdict,
+# score, rep counter, exercise dispatch, camera or UI. It uses the existing
+# exercise database as the source of exercise-specific coaching language and
+# adds conservative, camera-visible posture checks for all exercises.
+
+_DB_PATH = Path(__file__).with_name("exercise_database_300_plus.json")
+
+
+def _load_exercise_knowledge():
+    try:
+        with open(_DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f).get("exercises", {})
+    except Exception:
+        return {}
+
+
+_EXERCISE_DB = _load_exercise_knowledge()
+
+
+def _exercise_profile(exercise):
+    return _EXERCISE_DB.get(exercise, {})
+
+
+def _visible_points(lm, w, h):
+    return {
+        "ls": _p(lm, e.LEFT_SHOULDER, w, h),
+        "rs": _p(lm, e.RIGHT_SHOULDER, w, h),
+        "le": _p(lm, e.LEFT_ELBOW, w, h),
+        "re": _p(lm, e.RIGHT_ELBOW, w, h),
+        "lw": _p(lm, e.LEFT_WRIST, w, h),
+        "rw": _p(lm, e.RIGHT_WRIST, w, h),
+        "lh": _p(lm, e.LEFT_HIP, w, h),
+        "rh": _p(lm, e.RIGHT_HIP, w, h),
+        "lk": _p(lm, e.LEFT_KNEE, w, h),
+        "rk": _p(lm, e.RIGHT_KNEE, w, h),
+        "la": _p(lm, e.LEFT_ANKLE, w, h),
+        "ra": _p(lm, e.RIGHT_ANKLE, w, h),
+    }
+
+
+def _append_db_recommendations(result, exercise):
+    profile = _exercise_profile(exercise)
+    coaching = profile.get("coaching", []) if isinstance(profile, dict) else []
+    mistakes = profile.get("common_mistakes", []) if isinstance(profile, dict) else []
+    if result.status in ("yellow", "red"):
+        # Prefer database coaching language, but keep the UI concise.
+        for text in coaching[:2]:
+            if text and text not in result.recommendations:
+                result.recommendations.append(str(text))
+        if mistakes:
+            result.common_mistakes = [str(x) for x in mistakes[:5]]
+    else:
+        result.common_mistakes = [str(x) for x in mistakes[:5]]
+
+
+LOWER_BODY_EXERCISES = {
+    "squat", "lunges", "reverse_lunge", "bulgarian_split_squat",
+    "walking_lunge", "curtsy_lunge", "lateral_lunge", "step_up",
+    "leg_press", "hack_squat", "front_squat", "goblet_squat",
+    "box_squat", "wall_sit", "sissy_squat", "jump_squat", "box_jump",
+    "tuck_jump", "skater_jumps", "lateral_shuffle", "high_knees",
+    "butt_kicks", "kettlebell_swing", "thruster",
+}
+HINGE_EXERCISES = {
+    "deadlift", "romanian_deadlift", "stiff_leg_deadlift", "good_morning",
+    "back_extension", "cable_pull_through", "dumbbell_row", "barbell_row",
+    "pendlay_row", "t_bar_row", "single_arm_dumbbell_row",
+    "chest_supported_row", "machine_row",
+}
+UPPER_EXERCISES = {
+    "bicep_curls", "hammer_curl", "alternating_dumbbell_curl", "concentration_curl",
+    "preacher_curl", "ez_bar_curl", "barbell_curl", "cable_curl",
+    "incline_dumbbell_curl", "spider_curl", "zottman_curl", "reverse_curl",
+    "shoulder_press", "dumbbell_shoulder_press", "barbell_overhead_press",
+    "machine_shoulder_press", "arnold_press", "lateral_shoulder_raises",
+    "cable_lateral_raise", "front_raise", "cable_front_raise", "plate_front_raise",
+    "leaning_lateral_raise", "upright_row", "tricep_extension", "tricep_pushdown",
+    "rope_tricep_pushdown", "overhead_cable_tricep_extension", "skull_crusher",
+    "cable_kickback", "dumbbell_kickback", "face_pull", "reverse_fly", "pull_up",
+    "chin_up", "assisted_pull_up", "lat_pulldown", "close_grip_lat_pulldown",
+    "straight_arm_pulldown", "seated_cable_row", "high_cable_crossover",
+    "low_cable_crossover", "cable_crossover", "pec_deck", "chest_fly",
+    "svend_press", "bench_press", "close_grip_bench_press", "dumbbell_bench_press",
+    "incline_bench_press", "decline_bench_press", "incline_dumbbell_press",
+    "chest_press_machine", "dumbbell_pullover",
+}
+CORE_EXERCISES = {
+    "push_up", "push_up_wide_grip", "push_up_diamond", "incline_push_up",
+    "decline_push_up", "close_grip_pushup", "plank", "crunch", "bicycle_crunch",
+    "reverse_crunch", "sit_up", "leg_raise", "hanging_leg_raise", "knee_raise",
+    "russian_twist", "dead_bug", "bird_dog", "hollow_body_hold", "v_up",
+    "flutter_kick", "heel_touch", "side_plank", "pallof_press", "mountain_climber",
+    "burpee", "bear_crawl", "inchworm", "man_maker", "turkish_get_up",
+}
+
+
+def _universal_posture_checks(result, exercise, lm, w, h):
+    """Conservative camera-visible checks shared by movement families."""
+    p = _visible_points(lm, w, h)
+    issues, recs = [], []
+
+    shoulders = (p["ls"], p["rs"])
+    hips = (p["lh"], p["rh"])
+    shoulder_w = e.distance(*shoulders) if all(shoulders) else None
+    hip_w = e.distance(*hips) if all(hips) else None
+
+    lower_body = LOWER_BODY_EXERCISES
+    hinge = HINGE_EXERCISES
+    upper = UPPER_EXERCISES
+    core = CORE_EXERCISES
+
+    # Torso alignment: only use when the movement normally needs a stable
+    # torso or neutral spine. The threshold is intentionally conservative.
+    if exercise in lower_body | hinge | upper | core and p["ls"] and p["lh"]:
+        lean = _lean(p["ls"], p["lh"])
+        if lean is not None:
+            limit = 34 if exercise in lower_body else (42 if exercise in hinge else 28)
+            if lean > limit:
+                issues.append(_issue("universal_torso", "CONTROL TORSO POSITION",
+                    "Torso angle is outside the preferred camera-visible range.", "medium",
+                    "Brace your core and keep the torso controlled for this movement."))
+                recs.append("Slow the movement and avoid using torso momentum.")
+
+    # Knee-to-ankle tracking for standing leg movements.
+    if exercise in lower_body and shoulder_w:
+        for side, k, a in (("LEFT", p["lk"], p["la"]), ("RIGHT", p["rk"], p["ra"])):
+            if k and a and abs(k[0] - a[0]) / max(shoulder_w, 1) > 0.52:
+                issues.append(_issue("universal_knee_" + side.lower(), "KNEE TRACKING",
+                    f"{side.title()} knee is drifting away from the foot line.", "high",
+                    "Keep the knee tracking in the same direction as the toes."))
+                recs.append("Keep the knee aligned with the foot instead of letting it collapse inward.")
+
+    # Bilateral symmetry for upper-body movements.
+    if exercise in upper and shoulder_w:
+        if p["le"] and p["re"] and abs(p["le"][1] - p["re"][1]) / max(shoulder_w, 1) > 0.34:
+            issues.append(_issue("universal_arm_symmetry", "MATCH ARM HEIGHT",
+                "The two arms are moving through noticeably different heights.", "medium",
+                "Move both arms through the same range and tempo."))
+            recs.append("Use a controlled tempo and match both sides.")
+
+    # Body-line check for floor support movements.
+    if exercise in core and p["ls"] and p["lh"] and p["la"]:
+        body_angle = _angle(p["ls"], p["lh"], p["la"])
+        if body_angle is not None and body_angle < 145 and exercise in {
+            "push_up", "push_up_wide_grip", "push_up_diamond", "incline_push_up",
+            "decline_push_up", "close_grip_pushup", "plank", "bear_crawl"
+        }:
+            issues.append(_issue("universal_body_line", "KEEP BODY ALIGNED",
+                "Shoulders, hips and legs are not staying in one controlled line.", "high",
+                "Brace your core and keep your hips from dropping or lifting."))
+            recs.append("Reduce range or use an easier variation until you can hold the body line.")
+
+    _add(result, issues, recs)
+
+
+def _red_pipe_segments(result, exercise, lm, w, h):
+    """Make the problematic anatomical region visibly red when form is red.
+
+    This is visual-only: it does not create or change a form verdict.
+    Missing landmarks are skipped, so no fake red geometry is drawn.
+    """
+    if result.status != "red":
+        return
+
+    p = _visible_points(lm, w, h)
+    msg = str(getattr(result, "message", "")).upper()
+    issue_text = " ".join(
+        str(x.get("title", "")) + " " + str(x.get("detail", ""))
+        for x in getattr(result, "issues", [])
+    ).upper()
+    text = msg + " " + issue_text
+
+    segments = []
+    def add(a, b):
+        if a and b:
+            segments.append((a, b, "red"))
+
+    if any(k in text for k in ("BACK", "TORSO", "SPINE", "CHEST", "BODY LINE", "BODY ALIGNED")):
+        add(p["ls"], p["lh"]); add(p["rs"], p["rh"])
+    if any(k in text for k in ("KNEE", "LEG", "FOOT LINE")):
+        add(p["lh"], p["lk"]); add(p["lk"], p["la"]); add(p["rh"], p["rk"]); add(p["rk"], p["ra"])
+    if any(k in text for k in ("ELBOW", "ARM", "WRIST", "HAND")):
+        add(p["ls"], p["le"]); add(p["le"], p["lw"]); add(p["rs"], p["re"]); add(p["re"], p["rw"])
+    if any(k in text for k in ("HIP", "GLUTE", "PELVIS")):
+        add(p["ls"], p["lh"]); add(p["rs"], p["rh"]); add(p["lh"], p["lk"]); add(p["rh"], p["rk"])
+
+    # If the verdict is red but the message is generic, highlight the most
+    # relevant movement chain instead of painting the whole skeleton red.
+    if not segments:
+        if exercise in LOWER_BODY_EXERCISES or exercise in HINGE_EXERCISES:
+            add(p["ls"], p["lh"]); add(p["lh"], p["lk"]); add(p["lk"], p["la"])
+        elif exercise in UPPER_EXERCISES:
+            add(p["ls"], p["le"]); add(p["le"], p["lw"]); add(p["rs"], p["re"]); add(p["re"], p["rw"])
+        elif exercise in CORE_EXERCISES:
+            add(p["ls"], p["lh"]); add(p["lh"], p["lk"]); add(p["lk"], p["la"])
+
+    # Do not duplicate exact existing segments.
+    for a, b, status in segments:
+        duplicate = False
+        for x, y, _old in result.pipes:
+            if (e.distance(a, x) < 10 and e.distance(b, y) < 10) or (e.distance(a, y) < 10 and e.distance(b, x) < 10):
+                duplicate = True
+                break
+        if not duplicate:
+            result.pipes.append((a, b, status))
+
+
+
 def enhance_result(result, exercise, landmarks, width, height):
     """Add issue/recommendation metadata without changing core form logic."""
     result.issues = []
@@ -316,6 +529,12 @@ def enhance_result(result, exercise, landmarks, width, height):
     # Additive knowledge layer: exercise-specific checks + yellow guides.
     knowledge.apply_knowledge(result, exercise, landmarks, width, height)
     _add_position_guides(result, exercise, landmarks, width, height)
+
+    # Expanded knowledge for every exercise in the database. This is coaching
+    # metadata only; core verdict/score/reps remain untouched.
+    _universal_posture_checks(result, exercise, landmarks, width, height)
+    _append_db_recommendations(result, exercise)
+    _red_pipe_segments(result, exercise, landmarks, width, height)
 
     # HUMAN-TRAINER MODE:
     # The core pose engine remains the judge. This knowledge layer coaches

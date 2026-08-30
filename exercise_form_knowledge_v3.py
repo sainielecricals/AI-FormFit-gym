@@ -48,6 +48,14 @@ FORM_KNOWLEDGE = {
         "setup": ["feet stable", "neck neutral", "controlled trunk"],
         "checks": ["trunk motion", "symmetry", "momentum"],
     },
+    "lat_pulldown": {
+        "setup": ["stable seat", "torso controlled", "shoulders down"],
+        "checks": ["torso lean", "elbow path", "symmetry", "controlled return"],
+    },
+    "close_grip_lat_pulldown": {
+        "setup": ["stable seat", "torso controlled", "elbows even"],
+        "checks": ["torso lean", "elbow path", "symmetry", "controlled return"],
+    },
     "jumping_jack": {
         "setup": ["upright torso", "soft landing", "balanced stance"],
         "checks": ["arm symmetry", "leg symmetry", "open position"],

@@ -85,40 +85,160 @@ RIGHT_ANKLE = PL.RIGHT_ANKLE.value
 # ============================================================
 
 EXERCISES = {
-    "squat": "SQUAT",
-    "bicep_curls": "BICEP CURL",
-    "shoulder_press": "SHOULDER PRESS",
-    "lateral_shoulder_raises": "LATERAL RAISE",
-    "tricep_extension": "TRICEP EXTENSION",
-    "lunges": "LUNGE",
-    "push_up": "PUSH UP",
-    "dumbbell_row": "DUMBBELL ROW",
-    "sit_up": "SIT UP",
-    "jumping_jack": "JUMPING JACK",
-    "bench_press": "BENCH PRESS",
-    "deadlift": "DEADLIFT",
-    "front_raise": "FRONT RAISE",
-    "hammer_curl": "HAMMER CURL",
-    "calf_raise": "CALF RAISE",
-    "glute_bridge": "GLUTE BRIDGE",
-    "plank": "PLANK",
-    "mountain_climber": "MOUNTAIN CLIMBER",
-    "burpee": "BURPEE",
-    "step_up": "STEP-UP",
-    "reverse_lunge": "REVERSE LUNGE",
-    "chest_fly": "CHEST FLY",
-    "incline_dumbbell_press": "INCLINE DUMBBELL PRESS",
-    "decline_bench_press": "DECLINE BENCH PRESS",
-    "incline_bench_press": "INCLINE BENCH PRESS",
-    "dumbbell_bench_press": "DUMBBELL BENCH PRESS",
-    "close_grip_bench_press": "CLOSE GRIP BENCH PRESS",
-    "push_up_wide_grip": "WIDE GRIP PUSH-UP",
-    "push_up_diamond": "DIAMOND PUSH-UP",
-    "incline_push_up": "INCLINE PUSH-UP",
-    "decline_push_up": "DECLINE PUSH-UP",
-    "chest_press_machine": "CHEST PRESS MACHINE",
-    "cable_crossover": "CABLE CROSSOVER",
-    "low_cable_crossover": "LOW CABLE CROSSOVER",
+    'bicep_curls': 'Bicep Curl',
+    'squat': 'Squat',
+    'shoulder_press': 'Shoulder Press',
+    'lateral_shoulder_raises': 'Lateral Raise',
+    'tricep_extension': 'Tricep Extension',
+    'lunges': 'Lunge',
+    'push_up': 'Push-Up',
+    'dumbbell_row': 'Dumbbell Row',
+    'sit_up': 'Sit-Up',
+    'jumping_jack': 'Jumping Jack',
+    'bench_press': 'Bench Press',
+    'deadlift': 'Deadlift',
+    'front_raise': 'Front Raise',
+    'hammer_curl': 'Hammer Curl',
+    'calf_raise': 'Calf Raise',
+    'glute_bridge': 'Glute Bridge',
+    'plank': 'Plank',
+    'mountain_climber': 'Mountain Climber',
+    'burpee': 'Burpee',
+    'step_up': 'Step-Up',
+    'reverse_lunge': 'Reverse Lunge',
+    'chest_fly': 'Chest Fly',
+    'incline_dumbbell_press': 'Incline Dumbbell Press',
+    'decline_bench_press': 'Decline Bench Press',
+    'incline_bench_press': 'Incline Bench Press',
+    'dumbbell_bench_press': 'Dumbbell Bench Press',
+    'close_grip_bench_press': 'Close Grip Bench Press',
+    'push_up_wide_grip': 'Push-Up Wide Grip',
+    'push_up_diamond': 'Push-Up Diamond',
+    'incline_push_up': 'Incline Push-Up',
+    'decline_push_up': 'Decline Push-Up',
+    'chest_press_machine': 'Chest Press Machine',
+    'cable_crossover': 'Cable Crossover',
+    'low_cable_crossover': 'Low Cable Crossover',
+    'high_cable_crossover': 'High Cable Crossover',
+    'pec_deck': 'Pec Deck',
+    'dumbbell_pullover': 'Dumbbell Pullover',
+    'svend_press': 'Svend Press',
+    'pull_up': 'Pull-Up',
+    'chin_up': 'Chin-Up',
+    'assisted_pull_up': 'Assisted Pull-Up',
+    'lat_pulldown': 'Lat Pulldown',
+    'close_grip_lat_pulldown': 'Close Grip Lat Pulldown',
+    'straight_arm_pulldown': 'Straight Arm Pulldown',
+    'seated_cable_row': 'Seated Cable Row',
+    'chest_supported_row': 'Chest Supported Row',
+    'barbell_row': 'Barbell Row',
+    'pendlay_row': 'Pendlay Row',
+    't_bar_row': 'T-Bar Row',
+    'single_arm_dumbbell_row': 'Single Arm Dumbbell Row',
+    'machine_row': 'Machine Row',
+    'reverse_fly': 'Reverse Fly',
+    'face_pull': 'Face Pull',
+    'back_extension': 'Back Extension',
+    'good_morning': 'Good Morning',
+    'arnold_press': 'Arnold Press',
+    'dumbbell_shoulder_press': 'Dumbbell Shoulder Press',
+    'barbell_overhead_press': 'Barbell Overhead Press',
+    'machine_shoulder_press': 'Machine Shoulder Press',
+    'rear_delt_fly': 'Rear Delt Fly',
+    'cable_lateral_raise': 'Cable Lateral Raise',
+    'cable_front_raise': 'Cable Front Raise',
+    'upright_row': 'Upright Row',
+    'plate_front_raise': 'Plate Front Raise',
+    'leaning_lateral_raise': 'Leaning Lateral Raise',
+    'alternating_dumbbell_curl': 'Alternating Dumbbell Curl',
+    'concentration_curl': 'Concentration Curl',
+    'preacher_curl': 'Preacher Curl',
+    'ez_bar_curl': 'EZ Bar Curl',
+    'barbell_curl': 'Barbell Curl',
+    'cable_curl': 'Cable Curl',
+    'incline_dumbbell_curl': 'Incline Dumbbell Curl',
+    'spider_curl': 'Spider Curl',
+    'zottman_curl': 'Zottman Curl',
+    'reverse_curl': 'Reverse Curl',
+    'tricep_pushdown': 'Tricep Pushdown',
+    'rope_tricep_pushdown': 'Rope Tricep Pushdown',
+    'overhead_cable_tricep_extension': 'Overhead Cable Tricep Extension',
+    'skull_crusher': 'Skull Crusher',
+    'close_grip_push_up': 'Close Grip Push-Up',
+    'bench_dip': 'Bench Dip',
+    'parallel_bar_dip': 'Parallel Bar Dip',
+    'dumbbell_kickback': 'Dumbbell Kickback',
+    'cable_kickback': 'Cable Kickback',
+    'leg_press': 'Leg Press',
+    'hack_squat': 'Hack Squat',
+    'front_squat': 'Front Squat',
+    'goblet_squat': 'Goblet Squat',
+    'bulgarian_split_squat': 'Bulgarian Split Squat',
+    'romanian_deadlift': 'Romanian Deadlift',
+    'stiff_leg_deadlift': 'Stiff Leg Deadlift',
+    'leg_extension': 'Leg Extension',
+    'leg_curl': 'Leg Curl',
+    'seated_leg_curl': 'Seated Leg Curl',
+    'nordic_hamstring_curl': 'Nordic Hamstring Curl',
+    'walking_lunge': 'Walking Lunge',
+    'curtsy_lunge': 'Curtsy Lunge',
+    'lateral_lunge': 'Lateral Lunge',
+    'box_squat': 'Box Squat',
+    'wall_sit': 'Wall Sit',
+    'sissy_squat': 'Sissy Squat',
+    'hip_thrust': 'Hip Thrust',
+    'barbell_hip_thrust': 'Barbell Hip Thrust',
+    'cable_pull_through': 'Cable Pull Through',
+    'donkey_kick': 'Donkey Kick',
+    'fire_hydrant': 'Fire Hydrant',
+    'clamshell': 'Clamshell',
+    'frog_pump': 'Frog Pump',
+    'banded_glute_bridge': 'Banded Glute Bridge',
+    'crunch': 'Crunch',
+    'bicycle_crunch': 'Bicycle Crunch',
+    'reverse_crunch': 'Reverse Crunch',
+    'leg_raise': 'Leg Raise',
+    'hanging_leg_raise': 'Hanging Leg Raise',
+    'knee_raise': 'Knee Raise',
+    'russian_twist': 'Russian Twist',
+    'dead_bug': 'Dead Bug',
+    'bird_dog': 'Bird Dog',
+    'hollow_body_hold': 'Hollow Body Hold',
+    'v_up': 'V-Up',
+    'flutter_kick': 'Flutter Kick',
+    'heel_touch': 'Heel Touch',
+    'side_plank': 'Side Plank',
+    'pallof_press': 'Pallof Press',
+    'seated_calf_raise': 'Seated Calf Raise',
+    'standing_calf_raise': 'Standing Calf Raise',
+    'donkey_calf_raise': 'Donkey Calf Raise',
+    'single_leg_calf_raise': 'Single Leg Calf Raise',
+    'kettlebell_swing': 'Kettlebell Swing',
+    'thruster': 'Thruster',
+    'clean_and_press': 'Clean and Press',
+    'kettlebell_clean': 'Kettlebell Clean',
+    'bear_crawl': 'Bear Crawl',
+    'inchworm': 'Inchworm',
+    'man_maker': 'Man Maker',
+    'turkish_get_up': 'Turkish Get-Up',
+    'high_knees': 'High Knees',
+    'butt_kicks': 'Butt Kicks',
+    'skater_jumps': 'Skater Jumps',
+    'jump_squat': 'Jump Squat',
+    'box_jump': 'Box Jump',
+    'tuck_jump': 'Tuck Jump',
+    'lateral_shuffle': 'Lateral Shuffle',
+    'shadow_boxing': 'Shadow Boxing',
+    'world_s_greatest_stretch': "World's Greatest Stretch",
+    'cat_cow': 'Cat Cow',
+    'thoracic_rotation': 'Thoracic Rotation',
+    'hip_flexor_stretch': 'Hip Flexor Stretch',
+    'hamstring_stretch': 'Hamstring Stretch',
+    'quad_stretch': 'Quad Stretch',
+    'child_s_pose': "Child's Pose",
+    'downward_dog': 'Downward Dog',
+    'shoulder_dislocates': 'Shoulder Dislocates',
+    'ankle_dorsiflexion': 'Ankle Dorsiflexion',
 }
 
 ALIASES = {
@@ -149,6 +269,10 @@ ALIASES = {
     "sit ups": "sit_up",
     "jumping jack": "jumping_jack",
     "jumping jacks": "jumping_jack",
+    "lat pulldown": "lat_pulldown",
+    "lat pulldowns": "lat_pulldown",
+    "close grip lat pulldown": "close_grip_lat_pulldown",
+    "close-grip lat pulldown": "close_grip_lat_pulldown",
 }
 
 
@@ -1996,23 +2120,11 @@ def analyze_chest_press_machine(landmarks, width, height):
 
 
 def analyze_cable_crossover(landmarks, width, height):
-    result = analyze_bench_press(landmarks, width, height)
-    return _rename_result(
-        result,
-        "CABLE CROSSOVER FORM GOOD",
-        "CONTROL THE CABLE PATH",
-        "KEEP BOTH ARMS EVEN",
-    )
+    return analyze_cable_fly_pattern(landmarks, width, height, low=False)
 
 
 def analyze_low_cable_crossover(landmarks, width, height):
-    result = analyze_bench_press(landmarks, width, height)
-    return _rename_result(
-        result,
-        "LOW CABLE CROSSOVER FORM GOOD",
-        "CONTROL THE CABLE PATH",
-        "KEEP BOTH ARMS EVEN",
-    )
+    return analyze_cable_fly_pattern(landmarks, width, height, low=True)
 
 
 
@@ -2121,6 +2233,122 @@ def analyze_chest_fly(landmarks, width, height):
         status == "green",
     )
 
+
+
+def _analyze_lat_pulldown_core(landmarks, width, height):
+    """Exercise-specific lat-pulldown rule.
+
+    Uses shoulder/elbow/wrist geometry and torso stability. It deliberately
+    does not reuse the row, curl, press, or lateral-raise analyzers because
+    those movement patterns can incorrectly reject a pulldown.
+    """
+    pairs = [
+        (LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST),
+        (RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST),
+    ]
+    if not all(all(visible(landmarks, i, 0.45) for i in p) for p in pairs):
+        return FormResult("red", "SHOW BOTH ARMS CLEARLY", 0, view="FRONT")
+
+    ls = xy(landmarks, LEFT_SHOULDER, width, height)
+    rs = xy(landmarks, RIGHT_SHOULDER, width, height)
+    lh = xy(landmarks, LEFT_HIP, width, height) if visible(landmarks, LEFT_HIP, 0.40) else None
+    rh = xy(landmarks, RIGHT_HIP, width, height) if visible(landmarks, RIGHT_HIP, 0.40) else None
+
+    elbows = []
+    wrists = []
+    elbow_angles = []
+    pipes = []
+    for sid, eid, wid in pairs:
+        s = xy(landmarks, sid, width, height)
+        ept = xy(landmarks, eid, width, height)
+        wpt = xy(landmarks, wid, width, height)
+        elbows.append(ept); wrists.append(wpt)
+        elbow_angles.append(angle(s, ept, wpt))
+        pipes.extend([(s, ept, "green"), (ept, wpt, "green")])
+
+    shoulder_scale = max(distance(ls, rs), 1.0)
+    symmetry = abs(elbows[0][1] - elbows[1][1]) <= 0.18 * shoulder_scale
+
+    torso_lean = None
+    if lh is not None and rh is not None:
+        torso_lean = (abs((ls[0] + rs[0]) / 2 - (lh[0] + rh[0]) / 2)
+                      / max(abs(((ls[1] + rs[1]) / 2 - (lh[1] + rh[1]) / 2)), 1))
+        torso_lean = math.degrees(math.atan(torso_lean))
+
+    avg_elbow = sum(elbow_angles) / 2.0
+    avg_elbow_drop = ((ls[1] + rs[1]) / 2) - ((elbows[0][1] + elbows[1][1]) / 2)
+    drop_ratio = avg_elbow_drop / shoulder_scale
+
+    if torso_lean is not None and torso_lean > 28:
+        pipes = [(a, b, "red") if a in (ls, rs) else (a, b, s) for a, b, s in pipes]
+        return FormResult("red", "KEEP TORSO CONTROLLED", 55,
+                          {"elbow": avg_elbow, "elbow_drop": drop_ratio, "torso": torso_lean},
+                          pipes, [], "FRONT", False)
+
+    if not symmetry:
+        pipes = [(a, b, "red") for a, b, _ in pipes]
+        return FormResult("red", "PULL BOTH ELBOWS EVENLY", 55,
+                          {"elbow": avg_elbow, "elbow_drop": drop_ratio, "torso": torso_lean},
+                          pipes, [], "FRONT", False)
+
+    # Top position: arms extended overhead. Bottom position: elbows have
+    # descended below the shoulder line while remaining controlled.
+    if avg_elbow <= 95 and drop_ratio >= 0.08:
+        return FormResult("green", "LAT PULLDOWN FORM GOOD", 96,
+                          {"elbow": avg_elbow, "elbow_drop": drop_ratio, "torso": torso_lean},
+                          pipes, [], "FRONT", True)
+
+    if avg_elbow >= 145 and drop_ratio <= -0.02:
+        return FormResult("green", "LAT PULLDOWN START POSITION GOOD", 94,
+                          {"elbow": avg_elbow, "elbow_drop": drop_ratio, "torso": torso_lean},
+                          pipes, [], "FRONT", True)
+
+    return FormResult("yellow", "DRIVE ELBOWS DOWN WITH CONTROL", 78,
+                      {"elbow": avg_elbow, "elbow_drop": drop_ratio, "torso": torso_lean},
+                      pipes, [], "FRONT", False)
+
+
+def analyze_lat_pulldown(landmarks, width, height):
+    return _analyze_lat_pulldown_core(landmarks, width, height)
+
+
+def analyze_close_grip_lat_pulldown(landmarks, width, height):
+    result = _analyze_lat_pulldown_core(landmarks, width, height)
+    if result.status == "green":
+        result.message = "CLOSE GRIP LAT PULLDOWN FORM GOOD"
+    elif result.status == "yellow":
+        result.message = "KEEP ELBOWS TRACKING DOWN"
+    return result
+
+
+def analyze_cable_fly_pattern(landmarks, width, height, low=False):
+    pairs = [
+        (LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST),
+        (RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST),
+    ]
+    if not all(all(visible(landmarks, i, 0.45) for i in p) for p in pairs):
+        return FormResult("red", "SHOW BOTH ARMS", 0, view="FRONT")
+
+    ls = xy(landmarks, LEFT_SHOULDER, width, height)
+    rs = xy(landmarks, RIGHT_SHOULDER, width, height)
+    lw = xy(landmarks, LEFT_WRIST, width, height)
+    rw = xy(landmarks, RIGHT_WRIST, width, height)
+    le = xy(landmarks, LEFT_ELBOW, width, height)
+    re = xy(landmarks, RIGHT_ELBOW, width, height)
+    shoulder_width = max(distance(ls, rs), 1.0)
+    fly = distance(lw, rw) / shoulder_width
+    elbow_angles = [angle(ls, le, lw), angle(rs, re, rw)]
+    pipes = [(ls, le, "green"), (le, lw, "green"), (rs, re, "green"), (re, rw, "green")]
+    symmetry = abs(elbow_angles[0] - elbow_angles[1]) <= 20
+    if not symmetry:
+        return FormResult("red", "KEEP BOTH ARMS EVEN", 55, {"fly": fly},
+                          [(a,b,"red") for a,b,_ in pipes], [], "FRONT", False)
+    if 0.30 <= fly <= 0.75:
+        return FormResult("green", "CABLE CROSSOVER FORM GOOD" if not low else "LOW CABLE CROSSOVER FORM GOOD",
+                          95, {"fly": fly}, pipes, [], "FRONT", True)
+    if fly <= 1.25:
+        return FormResult("yellow", "CONTROL THE CABLE PATH", 78, {"fly": fly}, pipes, [], "FRONT", False)
+    return FormResult("yellow", "BRING HANDS TOGETHER WITH CONTROL", 76, {"fly": fly}, pipes, [], "FRONT", False)
 
 
 # ============================================================
@@ -2238,6 +2466,130 @@ def add_professional_pipes(result, landmarks, width, height):
 
 
 
+
+
+def _rename_family_result(result, good, yellow, red=None):
+    if result.status == "green":
+        result.message = good
+    elif result.status == "yellow":
+        result.message = yellow
+    elif red:
+        result.message = red
+    return result
+
+
+def analyze_straight_arm_pulldown(landmarks, width, height):
+    pairs=[(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_ELBOW,RIGHT_WRIST)]
+    if not all(all(visible(landmarks,i,0.45) for i in p) for p in pairs):
+        return FormResult("red","SHOW BOTH ARMS CLEARLY",0,view="FRONT")
+    pipes=[]; vals=[]
+    for sid,eid,wid in pairs:
+        s=xy(landmarks,sid,width,height); e=xy(landmarks,eid,width,height); w=xy(landmarks,wid,width,height)
+        vals.append(angle(s,e,w)); pipes.extend([(s,e,"green"),(e,w,"green")])
+    elbow=sum(vals)/2
+    shoulder_y=(xy(landmarks,LEFT_SHOULDER,width,height)[1]+xy(landmarks,RIGHT_SHOULDER,width,height)[1])/2
+    wrist_y=(xy(landmarks,LEFT_WRIST,width,height)[1]+xy(landmarks,RIGHT_WRIST,width,height)[1])/2
+    drop=(wrist_y-shoulder_y)/max(height,1)
+    if elbow < 145:
+        pipes=[(a,b,"red") for a,b,_ in pipes]
+        return FormResult("red","KEEP ARMS NEARLY STRAIGHT",55,{"elbow":elbow,"drop":drop},pipes,[],"FRONT",False)
+    if drop > 0.16:
+        return FormResult("green","STRAIGHT ARM PULLDOWN FORM GOOD",95,{"elbow":elbow,"drop":drop},pipes,[],"FRONT",True)
+    return FormResult("yellow","PULL HANDS DOWN WITH STRAIGHT ARMS",78,{"elbow":elbow,"drop":drop},pipes,[],"FRONT",False)
+
+
+def analyze_row_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_row(landmarks,width,height), message, "PULL ELBOWS BACK WITH CONTROL", "KEEP BACK NEUTRAL")
+
+
+def analyze_reverse_fly(landmarks, width, height):
+    pairs=[(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_ELBOW,RIGHT_WRIST)]
+    if not all(all(visible(landmarks,i,0.45) for i in p) for p in pairs):
+        return FormResult("red","SHOW BOTH ARMS CLEARLY",0,view="FRONT")
+    pipes=[]; elbows=[]
+    for sid,eid,wid in pairs:
+        s=xy(landmarks,sid,width,height); e=xy(landmarks,eid,width,height); w=xy(landmarks,wid,width,height)
+        elbows.append(angle(s,e,w)); pipes.extend([(s,e,"green"),(e,w,"green")])
+    span=distance(xy(landmarks,LEFT_WRIST,width,height),xy(landmarks,RIGHT_WRIST,width,height))/max(distance(xy(landmarks,LEFT_SHOULDER,width,height),xy(landmarks,RIGHT_SHOULDER,width,height)),1)
+    if abs(elbows[0]-elbows[1])>22:
+        return FormResult("red","KEEP BOTH ARMS EVEN",55,{"span":span},[(a,b,"red") for a,b,_ in pipes],[],"FRONT",False)
+    if span>=1.45:
+        return FormResult("green","REVERSE FLY FORM GOOD",95,{"span":span},pipes,[],"FRONT",True)
+    return FormResult("yellow","OPEN ARMS OUT WITH CONTROL",78,{"span":span},pipes,[],"FRONT",False)
+
+
+def analyze_face_pull(landmarks, width, height):
+    pairs=[(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_ELBOW,RIGHT_WRIST)]
+    if not all(all(visible(landmarks,i,0.45) for i in p) for p in pairs):
+        return FormResult("red","SHOW BOTH ARMS CLEARLY",0,view="FRONT")
+    pipes=[]; vals=[]
+    for sid,eid,wid in pairs:
+        s=xy(landmarks,sid,width,height); e=xy(landmarks,eid,width,height); w=xy(landmarks,wid,width,height)
+        vals.append(angle(s,e,w)); pipes.extend([(s,e,"green"),(e,w,"green")])
+    wrist_mid=((xy(landmarks,LEFT_WRIST,width,height)[0]+xy(landmarks,RIGHT_WRIST,width,height)[0])/2,
+               (xy(landmarks,LEFT_WRIST,width,height)[1]+xy(landmarks,RIGHT_WRIST,width,height)[1])/2)
+    shoulder_mid=((xy(landmarks,LEFT_SHOULDER,width,height)[0]+xy(landmarks,RIGHT_SHOULDER,width,height)[0])/2,
+                  (xy(landmarks,LEFT_SHOULDER,width,height)[1]+xy(landmarks,RIGHT_SHOULDER,width,height)[1])/2)
+    scale=max(distance(xy(landmarks,LEFT_SHOULDER,width,height),xy(landmarks,RIGHT_SHOULDER,width,height)),1)
+    face_proximity=distance(wrist_mid,shoulder_mid)/scale
+    if abs(vals[0]-vals[1])>22:
+        return FormResult("red","KEEP BOTH ARMS EVEN",55,{"elbow":sum(vals)/2},[(a,b,"red") for a,b,_ in pipes],[],"FRONT",False)
+    if 0.45 <= face_proximity <= 1.15 and sum(vals)/2 <= 120:
+        return FormResult("green","FACE PULL FORM GOOD",95,{"elbow":sum(vals)/2,"face_proximity":face_proximity},pipes,[],"FRONT",True)
+    return FormResult("yellow","PULL TOWARD FACE WITH CONTROL",78,{"elbow":sum(vals)/2,"face_proximity":face_proximity},pipes,[],"FRONT",False)
+
+
+def analyze_back_extension(landmarks, width, height):
+    side=choose_side(landmarks)
+    ids=(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE) if side=="LEFT" else (RIGHT_SHOULDER,RIGHT_HIP,RIGHT_KNEE)
+    if not all(visible(landmarks,i,0.45) for i in ids):
+        return FormResult("red","SHOW SHOULDER, HIP AND KNEE",0,view="SIDE")
+    s,h,k=[xy(landmarks,i,width,height) for i in ids]
+    hip=angle(s,h,k); pipes=[(s,h,"green"),(h,k,"green")]
+    if hip < 145:
+        return FormResult("yellow","EXTEND THROUGH THE HIPS",78,{"hip":hip},pipes,[],"SIDE",False)
+    return FormResult("green","BACK EXTENSION FORM GOOD",95,{"hip":hip},pipes,[],"SIDE",True)
+
+
+def analyze_good_morning(landmarks, width, height):
+    side=choose_side(landmarks)
+    ids=(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE) if side=="LEFT" else (RIGHT_SHOULDER,RIGHT_HIP,RIGHT_KNEE)
+    if not all(visible(landmarks,i,0.45) for i in ids):
+        return FormResult("red","SHOW FULL BODY FROM SIDE",0,view="SIDE")
+    s,h,k=[xy(landmarks,i,width,height) for i in ids]
+    hip=angle(s,h,k); knee=angle(h,k,xy(landmarks,LEFT_ANKLE if side=="LEFT" else RIGHT_ANKLE,width,height))
+    pipes=[(s,h,"green"),(h,k,"green")]
+    if hip < 70:
+        return FormResult("red","KEEP SPINE CONTROLLED",52,{"hip":hip,"knee":knee},pipes,[],"SIDE",False)
+    if 75 <= hip <= 125:
+        return FormResult("yellow","HINGE AT HIPS WITH A NEUTRAL BACK",78,{"hip":hip,"knee":knee},pipes,[],"SIDE",False)
+    return FormResult("green","GOOD MORNING FORM GOOD",95,{"hip":hip,"knee":knee},pipes,[],"SIDE",True)
+
+
+def analyze_shoulder_press_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_shoulder_press(landmarks,width,height), message, "PRESS BOTH ARMS EVENLY", "KEEP TORSO CONTROLLED")
+
+
+def analyze_upright_row(landmarks, width, height):
+    pairs=[(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),(RIGHT_SHOULDER,RIGHT_ELBOW,RIGHT_WRIST)]
+    if not all(all(visible(landmarks,i,0.45) for i in p) for p in pairs):
+        return FormResult("red","SHOW BOTH ARMS CLEARLY",0,view="FRONT")
+    pipes=[]; vals=[]
+    for sid,eid,wid in pairs:
+        s=xy(landmarks,sid,width,height); e=xy(landmarks,eid,width,height); w=xy(landmarks,wid,width,height)
+        vals.append(angle(s,e,w)); pipes.extend([(s,e,"green"),(e,w,"green")])
+    elbow_y=(xy(landmarks,LEFT_ELBOW,width,height)[1]+xy(landmarks,RIGHT_ELBOW,width,height)[1])/2
+    shoulder_y=(xy(landmarks,LEFT_SHOULDER,width,height)[1]+xy(landmarks,RIGHT_SHOULDER,width,height)[1])/2
+    rise=(shoulder_y-elbow_y)/max(height,1)
+    if abs(vals[0]-vals[1])>20:
+        return FormResult("red","KEEP BOTH ARMS EVEN",55,{"elbow":sum(vals)/2,"rise":rise},[(a,b,"red") for a,b,_ in pipes],[],"FRONT",False)
+    if rise>=0.12:
+        return FormResult("green","UPRIGHT ROW FORM GOOD",94,{"elbow":sum(vals)/2,"rise":rise},pipes,[],"FRONT",True)
+    return FormResult("yellow","DRIVE ELBOWS UP WITH CONTROL",78,{"elbow":sum(vals)/2,"rise":rise},pipes,[],"FRONT",False)
+
+
+def analyze_tricep_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_tricep(landmarks,width,height), message, "KEEP ELBOWS FIXED", "KEEP ELBOWS CLOSE")
 
 def analyze_exercise(exercise, landmarks, width, height):
     def finish(result):
@@ -2390,10 +2742,213 @@ def analyze_exercise(exercise, landmarks, width, height):
         return finish(analyze_chest_press_machine(landmarks, width, height))
 
     if exercise == "cable_crossover":
-        return finish(analyze_cable_crossover(landmarks, width, height))
+        return finish(analyze_cable_fly_pattern(landmarks, width, height, low=False))
 
     if exercise == "low_cable_crossover":
-        return finish(analyze_low_cable_crossover(landmarks, width, height))
+        return finish(analyze_cable_fly_pattern(landmarks, width, height, low=True))
+
+    if exercise == "lat_pulldown":
+        return finish(analyze_lat_pulldown(landmarks, width, height))
+
+    if exercise == "close_grip_lat_pulldown":
+        return finish(analyze_close_grip_lat_pulldown(landmarks, width, height))
+
+    if exercise == "straight_arm_pulldown":
+        return finish(analyze_straight_arm_pulldown(landmarks, width, height))
+    if exercise == "seated_cable_row":
+        return finish(analyze_row_variant(landmarks, width, height, "SEATED CABLE ROW FORM GOOD"))
+    if exercise == "chest_supported_row":
+        return finish(analyze_row_variant(landmarks, width, height, "CHEST SUPPORTED ROW FORM GOOD"))
+    if exercise == "barbell_row":
+        return finish(analyze_row_variant(landmarks, width, height, "BARBELL ROW FORM GOOD"))
+    if exercise == "pendlay_row":
+        return finish(analyze_row_variant(landmarks, width, height, "PENDLAY ROW FORM GOOD"))
+    if exercise == "t_bar_row":
+        return finish(analyze_row_variant(landmarks, width, height, "T-BAR ROW FORM GOOD"))
+    if exercise == "single_arm_dumbbell_row":
+        return finish(analyze_row_variant(landmarks, width, height, "SINGLE ARM ROW FORM GOOD"))
+    if exercise == "machine_row":
+        return finish(analyze_row_variant(landmarks, width, height, "MACHINE ROW FORM GOOD"))
+    if exercise == "reverse_fly":
+        return finish(analyze_reverse_fly(landmarks, width, height))
+    if exercise == "face_pull":
+        return finish(analyze_face_pull(landmarks, width, height))
+    if exercise == "back_extension":
+        return finish(analyze_back_extension(landmarks, width, height))
+    if exercise == "good_morning":
+        return finish(analyze_good_morning(landmarks, width, height))
+    if exercise == "arnold_press":
+        return finish(analyze_shoulder_press_variant(landmarks, width, height, "ARNOLD PRESS FORM GOOD"))
+    if exercise == "dumbbell_shoulder_press":
+        return finish(analyze_shoulder_press_variant(landmarks, width, height, "DUMBBELL SHOULDER PRESS FORM GOOD"))
+    if exercise == "barbell_overhead_press":
+        return finish(analyze_shoulder_press_variant(landmarks, width, height, "BARBELL OVERHEAD PRESS FORM GOOD"))
+    if exercise == "machine_shoulder_press":
+        return finish(analyze_shoulder_press_variant(landmarks, width, height, "MACHINE SHOULDER PRESS FORM GOOD"))
+    if exercise == "rear_delt_fly":
+        return finish(analyze_reverse_fly(landmarks, width, height))
+    if exercise == "cable_lateral_raise":
+        return finish(_rename_family_result(analyze_lateral(landmarks,width,height), "CABLE LATERAL RAISE FORM GOOD", "RAISE WITH CONTROL", "KEEP BOTH ARMS VISIBLE"))
+    if exercise == "cable_front_raise":
+        return finish(_rename_family_result(analyze_front_raise(landmarks,width,height), "CABLE FRONT RAISE FORM GOOD", "RAISE TO SHOULDER HEIGHT", "KEEP BOTH ARMS EVEN"))
+    if exercise == "upright_row":
+        return finish(analyze_upright_row(landmarks, width, height))
+    if exercise == "plate_front_raise":
+        return finish(_rename_family_result(analyze_front_raise(landmarks,width,height), "PLATE FRONT RAISE FORM GOOD", "RAISE TO SHOULDER HEIGHT", "KEEP BOTH ARMS EVEN"))
+    if exercise == "leaning_lateral_raise":
+        return finish(_rename_family_result(analyze_lateral(landmarks,width,height), "LEANING LATERAL RAISE FORM GOOD", "RAISE WITH CONTROL", "KEEP BOTH ARMS VISIBLE"))
+    if exercise == "tricep_pushdown":
+        return finish(analyze_tricep_variant(landmarks,width,height,"TRICEP PUSHDOWN FORM GOOD"))
+    if exercise == "rope_tricep_pushdown":
+        return finish(analyze_tricep_variant(landmarks,width,height,"ROPE TRICEP PUSHDOWN FORM GOOD"))
+    if exercise == "overhead_cable_tricep_extension":
+        return finish(analyze_tricep_variant(landmarks,width,height,"OVERHEAD CABLE TRICEP EXTENSION FORM GOOD"))
+
+    # BATCH 3 — biceps
+    if exercise == "alternating_dumbbell_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "ALTERNATING DUMBBELL CURL FORM GOOD"))
+    if exercise == "concentration_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "CONCENTRATION CURL FORM GOOD"))
+    if exercise == "preacher_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "PREACHER CURL FORM GOOD"))
+    if exercise == "ez_bar_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "EZ-BAR CURL FORM GOOD"))
+    if exercise == "barbell_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "BARBELL CURL FORM GOOD"))
+    if exercise == "cable_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "CABLE CURL FORM GOOD"))
+    if exercise == "incline_dumbbell_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "INCLINE DUMBBELL CURL FORM GOOD"))
+    if exercise == "spider_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "SPIDER CURL FORM GOOD"))
+    if exercise == "zottman_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "ZOTTMAN CURL FORM GOOD"))
+    if exercise == "reverse_curl":
+        return finish(analyze_bicep_variant(landmarks, width, height, "REVERSE CURL FORM GOOD"))
+
+    # BATCH 3 — triceps / push
+    if exercise == "skull_crusher":
+        return finish(analyze_skull_crusher(landmarks, width, height))
+    if exercise == "close_grip_push_up":
+        return finish(analyze_close_grip_pushup(landmarks, width, height))
+    if exercise == "bench_dip":
+        return finish(analyze_dip_variant(landmarks, width, height, "BENCH DIP FORM GOOD"))
+    if exercise == "parallel_bar_dip":
+        return finish(analyze_dip_variant(landmarks, width, height, "PARALLEL BAR DIP FORM GOOD"))
+    if exercise == "dumbbell_kickback":
+        return finish(analyze_kickback(landmarks, width, height, "DUMBBELL KICKBACK FORM GOOD"))
+    if exercise == "cable_kickback":
+        return finish(analyze_kickback(landmarks, width, height, "CABLE KICKBACK FORM GOOD"))
+
+    # BATCH 3 — legs
+    if exercise == "leg_press":
+        return finish(analyze_leg_press(landmarks, width, height))
+    if exercise == "hack_squat":
+        return finish(analyze_hack_squat(landmarks, width, height))
+    if exercise == "front_squat":
+        return finish(analyze_front_squat(landmarks, width, height))
+    if exercise == "goblet_squat":
+        return finish(analyze_goblet_squat(landmarks, width, height))
+
+    # BATCH 4 — lower body / glutes / core. Every enabled ID has an explicit
+    # movement-family analyzer; no generic READY fallback is used.
+    if exercise == "bulgarian_split_squat":
+        return finish(analyze_lunge_variant(landmarks,width,height,"BULGARIAN SPLIT SQUAT FORM GOOD"))
+    if exercise == "romanian_deadlift":
+        return finish(analyze_hinge_variant(landmarks,width,height,"ROMANIAN DEADLIFT FORM GOOD"))
+    if exercise == "stiff_leg_deadlift":
+        return finish(analyze_hinge_variant(landmarks,width,height,"STIFF-LEG DEADLIFT FORM GOOD"))
+    if exercise == "leg_extension":
+        return finish(analyze_leg_extension(landmarks,width,height,"LEG EXTENSION FORM GOOD"))
+    if exercise == "leg_curl":
+        return finish(analyze_knee_curl(landmarks,width,height,"LEG CURL FORM GOOD"))
+    if exercise == "seated_leg_curl":
+        return finish(analyze_knee_curl(landmarks,width,height,"SEATED LEG CURL FORM GOOD"))
+    if exercise == "nordic_hamstring_curl":
+        return finish(analyze_hinge_variant(landmarks,width,height,"NORDIC HAMSTRING CURL FORM GOOD"))
+    if exercise == "walking_lunge":
+        return finish(analyze_lunge_variant(landmarks,width,height,"WALKING LUNGE FORM GOOD"))
+    if exercise == "curtsy_lunge":
+        return finish(analyze_lunge_variant(landmarks,width,height,"CURTSY LUNGE FORM GOOD"))
+    if exercise == "lateral_lunge":
+        return finish(analyze_lunge_variant(landmarks,width,height,"LATERAL LUNGE FORM GOOD"))
+    if exercise == "box_squat":
+        return finish(analyze_leg_variant(landmarks,width,height,"BOX SQUAT FORM GOOD"))
+    if exercise == "wall_sit":
+        return finish(analyze_leg_variant(landmarks,width,height,"WALL SIT FORM GOOD","HOLD KNEE POSITION","KEEP BACK AGAINST THE WALL"))
+    if exercise == "sissy_squat":
+        return finish(analyze_leg_variant(landmarks,width,height,"SISSY SQUAT FORM GOOD"))
+    if exercise == "hip_thrust":
+        return finish(analyze_floor_glute(landmarks,width,height,"HIP THRUST FORM GOOD"))
+    if exercise == "barbell_hip_thrust":
+        return finish(analyze_floor_glute(landmarks,width,height,"BARBELL HIP THRUST FORM GOOD"))
+    if exercise == "cable_pull_through":
+        return finish(analyze_hinge_variant(landmarks,width,height,"CABLE PULL-THROUGH FORM GOOD"))
+    if exercise == "donkey_kick":
+        return finish(analyze_floor_glute(landmarks,width,height,"DONKEY KICK FORM GOOD"))
+    if exercise == "fire_hydrant":
+        return finish(analyze_side_floor(landmarks,width,height,"FIRE HYDRANT FORM GOOD"))
+    if exercise == "clamshell":
+        return finish(analyze_side_floor(landmarks,width,height,"CLAMSHELL FORM GOOD"))
+    if exercise == "frog_pump":
+        return finish(analyze_floor_glute(landmarks,width,height,"FROG PUMP FORM GOOD"))
+
+    # BATCH 5 — chest / pull / core. Explicit IDs only.
+    if exercise == "high_cable_crossover": return finish(analyze_high_cable_crossover(landmarks,width,height))
+    if exercise == "pec_deck": return finish(analyze_pec_deck(landmarks,width,height))
+    if exercise == "dumbbell_pullover": return finish(analyze_dumbbell_pullover(landmarks,width,height))
+    if exercise == "svend_press": return finish(analyze_svend_press(landmarks,width,height))
+    if exercise == "pull_up": return finish(analyze_pullup_variant(landmarks,width,height,"PULL-UP FORM GOOD"))
+    if exercise == "chin_up": return finish(analyze_pullup_variant(landmarks,width,height,"CHIN-UP FORM GOOD"))
+    if exercise == "assisted_pull_up": return finish(analyze_pullup_variant(landmarks,width,height,"ASSISTED PULL-UP FORM GOOD"))
+    if exercise == "banded_glute_bridge": return finish(analyze_banded_glute_bridge(landmarks,width,height))
+    if exercise == "crunch": return finish(analyze_crunch_variant(landmarks,width,height,"CRUNCH FORM GOOD"))
+    if exercise == "bicycle_crunch": return finish(analyze_crunch_variant(landmarks,width,height,"BICYCLE CRUNCH FORM GOOD"))
+    if exercise == "reverse_crunch": return finish(analyze_reverse_crunch(landmarks,width,height))
+    if exercise == "leg_raise": return finish(analyze_leg_raise_variant(landmarks,width,height,"LEG RAISE FORM GOOD"))
+    if exercise == "hanging_leg_raise": return finish(analyze_leg_raise_variant(landmarks,width,height,"HANGING LEG RAISE FORM GOOD"))
+    if exercise == "knee_raise": return finish(analyze_knee_raise(landmarks,width,height))
+    if exercise == "russian_twist": return finish(analyze_russian_twist(landmarks,width,height))
+    if exercise == "dead_bug": return finish(analyze_dead_bug(landmarks,width,height))
+    if exercise == "bird_dog": return finish(analyze_bird_dog(landmarks,width,height))
+    if exercise == "hollow_body_hold": return finish(analyze_hollow_body(landmarks,width,height))
+    if exercise == "v_up": return finish(analyze_v_up(landmarks,width,height))
+    if exercise == "flutter_kick": return finish(analyze_flutter_kick(landmarks,width,height))
+
+    # BATCH 6 — final 33 exercises. Each ID has an explicit movement-family analyzer.
+    if exercise == "heel_touch": return finish(analyze_heel_touch(landmarks,width,height))
+    if exercise == "side_plank": return finish(analyze_side_plank(landmarks,width,height))
+    if exercise == "pallof_press": return finish(analyze_pallof_press(landmarks,width,height))
+    if exercise == "seated_calf_raise": return finish(analyze_calves_variant(landmarks,width,height,"SEATED CALF RAISE FORM GOOD"))
+    if exercise == "standing_calf_raise": return finish(analyze_calves_variant(landmarks,width,height,"STANDING CALF RAISE FORM GOOD"))
+    if exercise == "donkey_calf_raise": return finish(analyze_calves_variant(landmarks,width,height,"DONKEY CALF RAISE FORM GOOD"))
+    if exercise == "single_leg_calf_raise": return finish(analyze_calves_variant(landmarks,width,height,"SINGLE-LEG CALF RAISE FORM GOOD"))
+    if exercise == "kettlebell_swing": return finish(analyze_kettlebell_swing(landmarks,width,height))
+    if exercise == "thruster": return finish(analyze_thruster(landmarks,width,height))
+    if exercise == "clean_and_press": return finish(analyze_clean_and_press(landmarks,width,height))
+    if exercise == "kettlebell_clean": return finish(analyze_kettlebell_clean(landmarks,width,height))
+    if exercise == "bear_crawl": return finish(analyze_bear_crawl(landmarks,width,height))
+    if exercise == "inchworm": return finish(analyze_inchworm(landmarks,width,height))
+    if exercise == "man_maker": return finish(analyze_man_maker(landmarks,width,height))
+    if exercise == "turkish_get_up": return finish(analyze_turkish_get_up(landmarks,width,height))
+    if exercise == "high_knees": return finish(analyze_high_knees(landmarks,width,height))
+    if exercise == "butt_kicks": return finish(analyze_butt_kicks(landmarks,width,height))
+    if exercise == "skater_jumps": return finish(analyze_skater_jumps(landmarks,width,height))
+    if exercise == "jump_squat": return finish(analyze_leg_variant(landmarks,width,height,"JUMP SQUAT FORM GOOD","LAND SOFTLY","KEEP KNEES ALIGNED"))
+    if exercise == "box_jump": return finish(analyze_box_jump(landmarks,width,height))
+    if exercise == "tuck_jump": return finish(analyze_tuck_jump(landmarks,width,height))
+    if exercise == "lateral_shuffle": return finish(analyze_lateral_shuffle(landmarks,width,height))
+    if exercise == "shadow_boxing": return finish(analyze_shadow_boxing(landmarks,width,height))
+    if exercise == "world_s_greatest_stretch": return finish(analyze_mobility(landmarks,width,height,"WORLD'S GREATEST STRETCH FORM GOOD"))
+    if exercise == "cat_cow": return finish(analyze_cat_cow(landmarks,width,height))
+    if exercise == "thoracic_rotation": return finish(analyze_thoracic_rotation(landmarks,width,height))
+    if exercise == "hip_flexor_stretch": return finish(analyze_mobility(landmarks,width,height,"HIP FLEXOR STRETCH FORM GOOD"))
+    if exercise == "hamstring_stretch": return finish(analyze_mobility(landmarks,width,height,"HAMSTRING STRETCH FORM GOOD"))
+    if exercise == "quad_stretch": return finish(analyze_mobility(landmarks,width,height,"QUAD STRETCH FORM GOOD"))
+    if exercise == "child_s_pose": return finish(analyze_mobility(landmarks,width,height,"CHILD'S POSE FORM GOOD"))
+    if exercise == "downward_dog": return finish(analyze_downward_dog(landmarks,width,height))
+    if exercise == "shoulder_dislocates": return finish(analyze_shoulder_dislocates(landmarks,width,height))
+    if exercise == "ankle_dorsiflexion": return finish(analyze_ankle_dorsiflexion(landmarks,width,height))
 
     return finish(FormResult(
         "yellow",
@@ -2401,6 +2956,102 @@ def analyze_exercise(exercise, landmarks, width, height):
         70,
     ))
 
+
+
+# ============================================================
+# EXPANDED EXERCISE RULES — BATCH 5
+# ============================================================
+
+def _core_angle(landmarks, width, height):
+    ids=(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE)
+    if not all(visible(landmarks,i,0.42) for i in ids):
+        return None, []
+    a=xy(landmarks,ids[0],width,height); b=xy(landmarks,ids[1],width,height); c=xy(landmarks,ids[2],width,height)
+    return angle(a,b,c), [(a,b,"green"),(b,c,"green")]
+
+def analyze_high_cable_crossover(landmarks,w,h):
+    return _rename_family_result(analyze_cable_fly_pattern(landmarks,w,h,low=False),"HIGH CABLE CROSSOVER FORM GOOD","KEEP ELBOWS SOFT","CONTROL THE DOWNWARD ARC")
+
+def analyze_pec_deck(landmarks,w,h):
+    return _rename_family_result(analyze_cable_fly_pattern(landmarks,w,h,low=False),"PEC DECK FORM GOOD","KEEP SHOULDERS STABLE","BRING ARMS TOGETHER WITH CONTROL")
+
+def analyze_dumbbell_pullover(landmarks,w,h):
+    if not all(visible(landmarks,i,0.42) for i in (LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST,LEFT_HIP)):
+        return FormResult("yellow","SHOW UPPER BODY CLEARLY",70,view="SIDE")
+    s=xy(landmarks,LEFT_SHOULDER,w,h); e=xy(landmarks,LEFT_ELBOW,w,h); wr=xy(landmarks,LEFT_WRIST,w,h); hip=xy(landmarks,LEFT_HIP,w,h)
+    arm=angle(s,e,wr); pipes=[(s,e,"green"),(e,wr,"green"),(s,hip,"green")]
+    if arm is None: return FormResult("yellow","CONTROL THE ARM ARC",72,angles={"elbow":None},pipes=pipes,view="SIDE")
+    if 135<=arm<=175: st,msg,score="green","DUMBBELL PULLOVER FORM GOOD",96
+    elif arm>=115: st,msg,score="yellow","KEEP ELBOWS SOFT",80
+    else: st,msg,score="red","DO NOT BEND ELBOWS TOO MUCH",58
+    return FormResult(st,msg,score,angles={"elbow":arm},pipes=pipes,view="SIDE")
+
+def analyze_svend_press(landmarks,w,h):
+    return _rename_family_result(analyze_bench_press(landmarks,w,h),"SVEND PRESS FORM GOOD","KEEP CHEST UP","PRESS HANDS TOGETHER EVENLY")
+
+def analyze_pullup_variant(landmarks,w,h,message):
+    if not all(visible(landmarks,i,0.42) for i in (LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST,LEFT_HIP)):
+        return FormResult("yellow","SHOW FULL UPPER BODY",70,view="SIDE")
+    s=xy(landmarks,LEFT_SHOULDER,w,h); e=xy(landmarks,LEFT_ELBOW,w,h); wr=xy(landmarks,LEFT_WRIST,w,h); hip=xy(landmarks,LEFT_HIP,w,h)
+    elbow=angle(s,e,wr); pipes=[(s,e,"green"),(e,wr,"green"),(s,hip,"green")]
+    if elbow is None: return FormResult("yellow","CONTROL THE PULL",72,angles={"elbow":None},pipes=pipes,view="SIDE")
+    if elbow<=105: st,msg,score="green",message,97
+    elif elbow<=145: st,msg,score="yellow","DRIVE ELBOWS DOWN",80
+    else: st,msg,score="yellow","CONTROL THE LOWERING",74
+    return FormResult(st,msg,score,angles={"elbow":elbow},pipes=pipes,view="SIDE")
+
+def analyze_banded_glute_bridge(landmarks,w,h):
+    return _rename_family_result(analyze_glute_bridge(landmarks,w,h),"BANDED GLUTE BRIDGE FORM GOOD","KEEP KNEES OUT","SQUEEZE GLUTES AT THE TOP")
+
+def analyze_crunch_variant(landmarks,w,h,message):
+    return _rename_family_result(analyze_situp(landmarks,w,h),message,"KEEP NECK RELAXED","LIFT WITH YOUR CORE")
+
+def analyze_reverse_crunch(landmarks,w,h):
+    return _rename_family_result(analyze_situp(landmarks,w,h),"REVERSE CRUNCH FORM GOOD","CURL PELVIS UP","DO NOT SWING LEGS")
+
+def analyze_leg_raise_variant(landmarks,w,h,message):
+    if not all(visible(landmarks,i,0.40) for i in (LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE,LEFT_ANKLE)):
+        return FormResult("yellow","SHOW FULL SIDE PROFILE",70,view="SIDE")
+    sh=xy(landmarks,LEFT_SHOULDER,w,h); hip=xy(landmarks,LEFT_HIP,w,h); knee=xy(landmarks,LEFT_KNEE,w,h); ankle=xy(landmarks,LEFT_ANKLE,w,h)
+    hipang=angle(sh,hip,knee); kneeang=angle(hip,knee,ankle); pipes=[(sh,hip,"green"),(hip,knee,"green"),(knee,ankle,"green")]
+    if hipang is None: return FormResult("yellow","CONTROL LEG MOVEMENT",72,angles={"hip":None,"knee":kneeang},pipes=pipes,view="SIDE")
+    st,msg,score=("green",message,97) if hipang<125 else ("yellow","LIFT LEGS WITH CONTROL",78)
+    return FormResult(st,msg,score,angles={"hip":hipang,"knee":kneeang},pipes=pipes,view="SIDE")
+
+def analyze_knee_raise(landmarks,w,h):
+    return analyze_leg_raise_variant(landmarks,w,h,"KNEE RAISE FORM GOOD")
+
+def analyze_russian_twist(landmarks,w,h):
+    ang,pipes=_core_angle(landmarks,w,h)
+    if ang is None: return FormResult("yellow","SHOW SIDE PROFILE",70,view="SIDE")
+    st,msg,score=("green","RUSSIAN TWIST FORM GOOD",96) if 35<=ang<=120 else ("yellow","KEEP CORE CONTROLLED",78)
+    return FormResult(st,msg,score,angles={"hip":ang},pipes=pipes,view="SIDE")
+
+def analyze_dead_bug(landmarks,w,h):
+    ang,pipes=_core_angle(landmarks,w,h)
+    if ang is None: return FormResult("yellow","SHOW FULL BODY",70,view="SIDE")
+    st,msg,score=("green","DEAD BUG FORM GOOD",96) if 70<=ang<=125 else ("yellow","KEEP LOWER BACK CONTROLLED",78)
+    return FormResult(st,msg,score,angles={"hip":ang},pipes=pipes,view="SIDE")
+
+def analyze_bird_dog(landmarks,w,h):
+    ids=(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE,LEFT_ANKLE)
+    if not all(visible(landmarks,i,0.42) for i in ids): return FormResult("yellow","SHOW SIDE PROFILE",70,view="SIDE")
+    sh=xy(landmarks,ids[0],w,h); hip=xy(landmarks,ids[1],w,h); knee=xy(landmarks,ids[2],w,h); ankle=xy(landmarks,ids[3],w,h)
+    hipang=angle(sh,hip,knee); pipes=[(sh,hip,"green"),(hip,knee,"green"),(knee,ankle,"green")]
+    st,msg,score=("green","BIRD DOG FORM GOOD",96) if hipang and 145<=hipang<=180 else ("yellow","KEEP HIPS LEVEL",78)
+    return FormResult(st,msg,score,angles={"hip":hipang},pipes=pipes,view="SIDE")
+
+def analyze_hollow_body(landmarks,w,h):
+    ang,pipes=_core_angle(landmarks,w,h)
+    if ang is None: return FormResult("yellow","SHOW FULL SIDE PROFILE",70,view="SIDE")
+    st,msg,score=("green","HOLLOW BODY HOLD FORM GOOD",96) if 70<=ang<=125 else ("yellow","KEEP RIBS DOWN",78)
+    return FormResult(st,msg,score,angles={"hip":ang},pipes=pipes,view="SIDE")
+
+def analyze_v_up(landmarks,w,h):
+    return _rename_family_result(analyze_situp(landmarks,w,h),"V-UP FORM GOOD","LIFT WITH CORE","KEEP MOVEMENT CONTROLLED")
+
+def analyze_flutter_kick(landmarks,w,h):
+    return analyze_leg_raise_variant(landmarks,w,h,"FLUTTER KICK FORM GOOD")
 
 # ============================================================
 # CORRECTION GUIDE
@@ -2585,6 +3236,226 @@ def apply_stability(raw_result, decision_filter, target_filter):
 
 
 # ============================================================
+# EXPANDED EXERCISE RULES — BATCH 3
+# ============================================================
+# These are explicit IDs. They reuse only the appropriate movement-family
+# geometry; no unrelated exercise analyzer is used.
+
+def analyze_bicep_variant(landmarks, width, height, message):
+    return _rename_family_result(
+        analyze_bicep(landmarks, width, height),
+        message,
+        "KEEP ELBOWS FIXED",
+        "DO NOT SWING — KEEP ELBOWS FIXED",
+    )
+
+
+def analyze_skull_crusher(landmarks, width, height):
+    return _rename_family_result(
+        analyze_tricep(landmarks, width, height),
+        "SKULL CRUSHER FORM GOOD",
+        "KEEP ELBOWS STABLE",
+        "KEEP ELBOWS FROM FLARING",
+    )
+
+
+def analyze_close_grip_pushup(landmarks, width, height):
+    return _rename_family_result(
+        analyze_pushup(landmarks, width, height),
+        "CLOSE-GRIP PUSH-UP FORM GOOD",
+        "KEEP ELBOWS CONTROLLED",
+        "KEEP BODY STRAIGHT",
+    )
+
+
+def analyze_dip_variant(landmarks, width, height, message):
+    # Dips are an elbow-flexion push pattern; use the push-up body-line
+    # geometry only as a conservative camera-visible check.
+    return _rename_family_result(
+        analyze_pushup(landmarks, width, height),
+        message,
+        "CONTROL THE DESCENT",
+        "KEEP SHOULDERS AND HIPS CONTROLLED",
+    )
+
+
+def analyze_kickback(landmarks, width, height, message):
+    return _rename_family_result(
+        analyze_tricep(landmarks, width, height),
+        message,
+        "KEEP UPPER ARM STILL",
+        "KEEP ELBOW STABLE",
+    )
+
+
+def analyze_leg_press(landmarks, width, height):
+    # Camera can reliably evaluate the visible knee/hip leg pattern, not the
+    # machine mechanics themselves.
+    return _rename_family_result(
+        analyze_squat(landmarks, width, height),
+        "LEG PRESS FORM GOOD",
+        "CONTROL KNEE DEPTH",
+        "KEEP KNEES ALIGNED",
+    )
+
+
+def analyze_hack_squat(landmarks, width, height):
+    return _rename_family_result(
+        analyze_squat(landmarks, width, height),
+        "HACK SQUAT FORM GOOD",
+        "CONTROL YOUR DEPTH",
+        "KEEP KNEES ALIGNED",
+    )
+
+
+def analyze_front_squat(landmarks, width, height):
+    return _rename_family_result(
+        analyze_squat(landmarks, width, height),
+        "FRONT SQUAT FORM GOOD",
+        "KEEP CHEST UP",
+        "KEEP BACK NEUTRAL",
+    )
+
+
+def analyze_goblet_squat(landmarks, width, height):
+    return _rename_family_result(
+        analyze_squat(landmarks, width, height),
+        "GOBLET SQUAT FORM GOOD",
+        "KEEP CHEST UP",
+        "KEEP KNEES ALIGNED",
+    )
+
+
+# ============================================================
+# EXPANDED EXERCISE RULES — BATCH 4
+# ============================================================
+
+def analyze_leg_variant(landmarks, width, height, message, yellow="CONTROL YOUR DEPTH", red="KEEP KNEES ALIGNED"):
+    return _rename_family_result(analyze_squat(landmarks, width, height), message, yellow, red)
+
+
+def analyze_hinge_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_deadlift(landmarks, width, height), message, "HINGE AT THE HIPS", "KEEP BACK NEUTRAL")
+
+
+def analyze_lunge_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_lunge(landmarks, width, height), message, "KEEP FRONT KNEE ALIGNED", "CONTROL YOUR LUNGE")
+
+
+def analyze_knee_curl(landmarks, width, height, message):
+    # Camera-visible knee flexion check; machine setup itself is not inferred.
+    ids=(LEFT_HIP,LEFT_KNEE,LEFT_ANKLE)
+    if not all(visible(landmarks,i,0.45) for i in ids):
+        return FormResult("yellow","SHOW SIDE OF LEG CLEARLY",70,view="SIDE")
+    h=xy(landmarks,ids[0],width,height); k=xy(landmarks,ids[1],width,height); a=xy(landmarks,ids[2],width,height)
+    ang=angle(h,k,a); pipes=[(h,k,"green"),(k,a,"green")]
+    if ang is None: return FormResult("yellow","CONTROL KNEE MOVEMENT",70,angles={"knee":None},pipes=pipes,view="SIDE")
+    if ang <= 75: st,msg,score="green",message,98
+    elif ang <= 115: st,msg,score="yellow","CONTROL THE CURL",78
+    else: st,msg,score="yellow","BEND THE KNEE WITH CONTROL",72
+    return FormResult(st,msg,score,angles={"knee":ang},pipes=pipes,view="SIDE")
+
+
+def analyze_leg_extension(landmarks, width, height, message):
+    return analyze_knee_curl(landmarks,width,height,message)
+
+
+def analyze_floor_glute(landmarks, width, height, message):
+    return _rename_family_result(analyze_glute_bridge(landmarks,width,height), message, "CONTROL HIP MOVEMENT", "KEEP HIPS CONTROLLED")
+
+
+def analyze_core_floor(landmarks, width, height, message):
+    return _rename_family_result(analyze_situp(landmarks,width,height), message, "MOVE WITH CONTROL", "KEEP CORE CONTROLLED")
+
+
+def analyze_side_floor(landmarks, width, height, message):
+    return _rename_family_result(analyze_plank(landmarks,width,height), message, "KEEP HIPS ALIGNED", "KEEP BODY STABLE")
+
+
+def analyze_calves_variant(landmarks, width, height, message):
+    return _rename_family_result(analyze_calf_raise(landmarks,width,height), message, "RISE WITH CONTROL", "KEEP KNEES STABLE")
+
+
+# ============================================================
+# EXPANDED EXERCISE RULES — BATCH 6
+# ============================================================
+def _simple_visible(landmarks, ids, view="SIDE", message="SHOW YOUR BODY CLEARLY"):
+    if not all(visible(landmarks,i,0.40) for i in ids):
+        return FormResult("yellow",message,70,view=view)
+    return None
+
+def analyze_heel_touch(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE),"SIDE","SHOW UPPER BODY CLEARLY")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); k=xy(l,LEFT_KNEE,w,h)
+    a=angle(s,hip,k); pipes=[(s,hip,"green"),(hip,k,"green")]
+    return FormResult("green" if a and 25<=a<=115 else "yellow","HEEL TOUCH FORM GOOD" if a and 25<=a<=115 else "KEEP CORE CONTROLLED",95 if a and 25<=a<=115 else 78,angles={"hip":a},pipes=pipes,view="SIDE")
+
+def analyze_side_plank(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_ANKLE),"SIDE","SHOW FULL SIDE PROFILE")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); a=xy(l,LEFT_ANKLE,w,h)
+    torso=angle(s,hip,a); pipes=[(s,hip,"green"),(hip,a,"green")]
+    ok=torso is not None and 155<=torso<=180
+    return FormResult("green" if ok else "yellow","SIDE PLANK FORM GOOD" if ok else "KEEP BODY IN A STRAIGHT LINE",96 if ok else 78,angles={"body_line":torso},pipes=pipes,view="SIDE")
+
+def analyze_pallof_press(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_WRIST),"FRONT","SHOW UPPER BODY CLEARLY")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); wr=xy(l,LEFT_WRIST,w,h)
+    arm=distance(s,wr); pipes=[(s,hip,"green"),(s,wr,"green")]
+    return FormResult("green","PALLOF PRESS FORM GOOD",96,angles={"reach":arm},pipes=pipes,view="FRONT")
+
+def analyze_kettlebell_swing(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE,LEFT_ANKLE),"SIDE","SHOW FULL SIDE PROFILE")
+    if miss:return miss
+    sh=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); knee=xy(l,LEFT_KNEE,w,h); an=xy(l,LEFT_ANKLE,w,h)
+    ha=angle(sh,hip,knee); ka=angle(hip,knee,an); pipes=[(sh,hip,"green"),(hip,knee,"green"),(knee,an,"green")]
+    ok=ha is not None and 60<=ha<=135 and ka is not None and 100<=ka<=175
+    return FormResult("green" if ok else "yellow","KETTLEBELL SWING FORM GOOD" if ok else "HINGE AT THE HIPS — KEEP BACK NEUTRAL",96 if ok else 76,angles={"hip":ha,"knee":ka},pipes=pipes,view="SIDE")
+
+def analyze_thruster(l,w,h): return _rename_family_result(analyze_squat(l,w,h),"THRUSTER FORM GOOD","DRIVE THROUGH LEGS","KEEP KNEES ALIGNED")
+def analyze_clean_and_press(l,w,h): return _rename_family_result(analyze_deadlift(l,w,h),"CLEAN AND PRESS FORM GOOD","KEEP BACK NEUTRAL","CONTROL THE PRESS")
+def analyze_kettlebell_clean(l,w,h): return _rename_family_result(analyze_deadlift(l,w,h),"KETTLEBELL CLEAN FORM GOOD","HINGE AT THE HIPS","KEEP BACK NEUTRAL")
+def analyze_bear_crawl(l,w,h): return _rename_family_result(analyze_plank(l,w,h),"BEAR CRAWL FORM GOOD","KEEP HIPS CONTROLLED","MOVE OPPOSITE HAND AND FOOT")
+def analyze_inchworm(l,w,h): return _rename_family_result(analyze_plank(l,w,h),"INCHWORM FORM GOOD","KEEP CORE BRACED","MOVE HANDS WITH CONTROL")
+def analyze_man_maker(l,w,h): return _rename_family_result(analyze_burpee(l,w,h),"MAN MAKER FORM GOOD","KEEP CORE BRACED","LAND WITH CONTROL")
+def analyze_turkish_get_up(l,w,h): return _rename_family_result(analyze_floor_glute(l,w,h),"TURKISH GET-UP FORM GOOD","MOVE SLOWLY","KEEP SHOULDERS STABLE")
+def analyze_high_knees(l,w,h): return _rename_family_result(analyze_mountain_climber(l,w,h),"HIGH KNEES FORM GOOD","DRIVE KNEES UP","STAY TALL")
+def analyze_butt_kicks(l,w,h): return _rename_family_result(analyze_mountain_climber(l,w,h),"BUTT KICKS FORM GOOD","KEEP TORSO TALL","MOVE LEGS QUICKLY WITH CONTROL")
+def analyze_skater_jumps(l,w,h): return _rename_family_result(analyze_lunge(l,w,h),"SKATER JUMPS FORM GOOD","LAND SOFTLY","KEEP KNEE ALIGNED")
+def analyze_box_jump(l,w,h): return _rename_family_result(analyze_squat(l,w,h),"BOX JUMP FORM GOOD","LAND SOFTLY","KEEP KNEES ALIGNED")
+def analyze_tuck_jump(l,w,h): return _rename_family_result(analyze_squat(l,w,h),"TUCK JUMP FORM GOOD","LAND SOFTLY","KEEP CHEST CONTROLLED")
+def analyze_lateral_shuffle(l,w,h): return _rename_family_result(analyze_lunge(l,w,h),"LATERAL SHUFFLE FORM GOOD","STAY LOW","KEEP KNEES ALIGNED")
+def analyze_shadow_boxing(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),"FRONT","SHOW UPPER BODY CLEARLY")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); e=xy(l,LEFT_ELBOW,w,h); wr=xy(l,LEFT_WRIST,w,h); a=angle(s,e,wr)
+    return FormResult("green","SHADOW BOXING FORM GOOD",95,angles={"elbow":a},pipes=[(s,e,"green"),(e,wr,"green")],view="FRONT")
+def analyze_mobility(l,w,h,message):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE),"SIDE","SHOW FULL SIDE PROFILE")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); k=xy(l,LEFT_KNEE,w,h); a=angle(s,hip,k)
+    return FormResult("green",message,95,angles={"hip":a},pipes=[(s,hip,"green"),(hip,k,"green")],view="SIDE")
+def analyze_cat_cow(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_HIP,LEFT_KNEE),"SIDE","SHOW SIDE PROFILE")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); hip=xy(l,LEFT_HIP,w,h); k=xy(l,LEFT_KNEE,w,h); a=angle(s,hip,k)
+    return FormResult("green","CAT-COW FORM GOOD",95,angles={"spine":a},pipes=[(s,hip,"green"),(hip,k,"green")],view="SIDE")
+def analyze_thoracic_rotation(l,w,h): return analyze_mobility(l,w,h,"THORACIC ROTATION FORM GOOD")
+def analyze_downward_dog(l,w,h): return analyze_mobility(l,w,h,"DOWNWARD DOG FORM GOOD")
+def analyze_shoulder_dislocates(l,w,h):
+    miss=_simple_visible(l,(LEFT_SHOULDER,LEFT_ELBOW,LEFT_WRIST),"FRONT","SHOW BOTH ARMS CLEARLY")
+    if miss:return miss
+    s=xy(l,LEFT_SHOULDER,w,h); e=xy(l,LEFT_ELBOW,w,h); wr=xy(l,LEFT_WRIST,w,h); a=angle(s,e,wr)
+    return FormResult("green" if a and a>150 else "yellow","SHOULDER DISLOCATES FORM GOOD" if a and a>150 else "KEEP ARMS STRAIGHT",95 if a and a>150 else 78,angles={"elbow":a},pipes=[(s,e,"green"),(e,wr,"green")],view="FRONT")
+def analyze_ankle_dorsiflexion(l,w,h):
+    miss=_simple_visible(l,(LEFT_HIP,LEFT_KNEE,LEFT_ANKLE),"SIDE","SHOW LOWER LEG CLEARLY")
+    if miss:return miss
+    hip=xy(l,LEFT_HIP,w,h); k=xy(l,LEFT_KNEE,w,h); a=xy(l,LEFT_ANKLE,w,h); ang=angle(hip,k,a)
+    return FormResult("green","ANKLE DORSIFLEXION FORM GOOD",95,angles={"knee":ang},pipes=[(hip,k,"green"),(k,a,"green")],view="SIDE")
+
+# ============================================================
 # REP COUNTER
 # ============================================================
 
@@ -2668,8 +3539,14 @@ class RepCounter:
         if getattr(result, "status", "red") == "red":
             return self.reps
 
+        if exercise in ("alternating_dumbbell_curl", "concentration_curl", "preacher_curl", "ez_bar_curl", "barbell_curl", "cable_curl", "incline_dumbbell_curl", "spider_curl", "zottman_curl", "reverse_curl"):
+            return self._count_cycle(angles.get("elbow"), 100, 135, "high_low_high")
+
         if exercise == "bicep_curls":
             return self._count_cycle(angles.get("elbow"), 100, 135, "high_low_high")
+
+        if exercise in ("leg_press", "hack_squat", "front_squat", "goblet_squat"):
+            return self._count_cycle(angles.get("knee"), 112, 145, "high_low_high")
 
         if exercise in ("squat", "lunges"):
             return self._count_cycle(angles.get("knee"), 112, 145, "high_low_high")
@@ -2678,16 +3555,23 @@ class RepCounter:
                          "incline_push_up", "decline_push_up"):
             return self._count_cycle(angles.get("elbow"), 105, 145, "high_low_high")
 
-        if exercise == "lateral_shoulder_raises":
+        if exercise in ("lateral_shoulder_raises", "cable_lateral_raise", "leaning_lateral_raise"):
             return self._count_cycle(angles.get("raise"), 28, 65, "low_high_low")
 
-        if exercise == "shoulder_press":
+        if exercise in ("shoulder_press", "arnold_press", "dumbbell_shoulder_press",
+                        "barbell_overhead_press", "machine_shoulder_press"):
             return self._count_cycle(angles.get("elbow"), 100, 150, "low_high_low")
 
-        if exercise == "tricep_extension":
+        if exercise in ("skull_crusher", "close_grip_push_up", "bench_dip", "parallel_bar_dip", "dumbbell_kickback", "cable_kickback"):
             return self._count_cycle(angles.get("elbow"), 80, 145, "low_high_low")
 
-        if exercise == "dumbbell_row":
+        if exercise in ("tricep_extension", "tricep_pushdown", "rope_tricep_pushdown",
+                        "overhead_cable_tricep_extension"):
+            return self._count_cycle(angles.get("elbow"), 80, 145, "low_high_low")
+
+        if exercise in ("dumbbell_row", "seated_cable_row", "chest_supported_row",
+                        "barbell_row", "pendlay_row", "t_bar_row",
+                        "single_arm_dumbbell_row", "machine_row"):
             return self._count_cycle(angles.get("elbow"), 75, 145, "high_low_high")
 
         if exercise in (
@@ -2700,8 +3584,29 @@ class RepCounter:
         if exercise in ("chest_fly", "cable_crossover", "low_cable_crossover"):
             return self._count_cycle(angles.get("fly"), 0.35, 1.25, "low_high_low")
 
-        if exercise == "front_raise":
+        if exercise in ("lat_pulldown", "close_grip_lat_pulldown"):
+            return self._count_cycle(angles.get("elbow"), 95, 145, "high_low_high")
+
+        if exercise in ("front_raise", "cable_front_raise", "plate_front_raise"):
             return self._count_cycle(angles.get("raise"), 30, 70, "low_high_low")
+
+        if exercise in ("straight_arm_pulldown",):
+            return self._count_cycle(angles.get("drop"), -0.04, 0.16, "low_high_low")
+
+        if exercise in ("reverse_fly", "rear_delt_fly"):
+            return self._count_cycle(angles.get("span"), 0.65, 1.45, "low_high_low")
+
+        if exercise == "face_pull":
+            return self._count_cycle(angles.get("face_proximity"), 1.15, 0.45, "low_high_low")
+
+        if exercise == "upright_row":
+            return self._count_cycle(angles.get("rise"), 0.02, 0.12, "low_high_low")
+
+        if exercise in ("back_extension",):
+            return self._count_cycle(angles.get("hip"), 115, 155, "low_high_low")
+
+        if exercise == "good_morning":
+            return self._count_cycle(angles.get("hip"), 70, 125, "high_low_high")
 
         if exercise == "deadlift":
             return self._count_cycle(angles.get("knee"), 108, 150, "high_low_high")
@@ -2711,6 +3616,48 @@ class RepCounter:
 
         if exercise == "glute_bridge":
             return self._count_cycle(angles.get("hip"), 118, 155, "low_high_low")
+
+        if exercise in ("bulgarian_split_squat", "walking_lunge", "curtsy_lunge", "lateral_lunge", "box_squat", "wall_sit", "sissy_squat"):
+            return self._count_cycle(angles.get("knee"), 112, 145, "high_low_high")
+
+        if exercise in ("romanian_deadlift", "stiff_leg_deadlift", "cable_pull_through", "nordic_hamstring_curl"):
+            return self._count_cycle(angles.get("knee"), 108, 150, "high_low_high")
+
+        if exercise in ("leg_extension", "leg_curl", "seated_leg_curl"):
+            return self._count_cycle(angles.get("knee"), 75, 150, "high_low_high")
+
+        if exercise in ("hip_thrust", "barbell_hip_thrust", "donkey_kick", "frog_pump"):
+            return self._count_cycle(angles.get("hip"), 118, 155, "low_high_low")
+
+        if exercise in ("crunch","bicycle_crunch","reverse_crunch","leg_raise","hanging_leg_raise","knee_raise","russian_twist","dead_bug","bird_dog","v_up","flutter_kick"):
+            return self._count_cycle(angles.get("hip"), 75, 135, "high_low_high")
+
+        if exercise in ("pull_up","chin_up","assisted_pull_up"):
+            return self._count_cycle(angles.get("elbow"), 95, 150, "high_low_high")
+
+        if exercise in ("high_cable_crossover","pec_deck","svend_press"):
+            return self._count_cycle(angles.get("fly", angles.get("elbow")), 0.35, 1.25, "low_high_low")
+
+        if exercise == "dumbbell_pullover":
+            return self._count_cycle(angles.get("elbow"), 120, 165, "high_low_high")
+
+        if exercise == "banded_glute_bridge":
+            return self._count_cycle(angles.get("hip"), 118, 155, "low_high_low")
+
+        if exercise in ("heel_touch","side_plank","pallof_press"):
+            return self.reps
+
+        if exercise in ("seated_calf_raise","standing_calf_raise","donkey_calf_raise","single_leg_calf_raise"):
+            return self._count_cycle(angles.get("calf"), 1.00, 1.10, "low_high_low")
+
+        if exercise in ("kettlebell_swing","thruster","clean_and_press","kettlebell_clean","jump_squat","box_jump","tuck_jump"):
+            return self._count_cycle(angles.get("knee"), 105, 150, "high_low_high")
+
+        if exercise in ("high_knees","butt_kicks","skater_jumps","lateral_shuffle","shadow_boxing"):
+            return self._count_cycle(angles.get("elbow", angles.get("knee")), 90, 150, "high_low_high")
+
+        if exercise in ("bear_crawl","inchworm","man_maker","turkish_get_up","world_s_greatest_stretch","cat_cow","thoracic_rotation","hip_flexor_stretch","hamstring_stretch","quad_stretch","child_s_pose","downward_dog","shoulder_dislocates","ankle_dorsiflexion"):
+            return self.reps
 
         # Plank is a hold, not a repetition-based movement.
         if exercise == "plank":
@@ -2894,6 +3841,9 @@ def instruction_lines(exercise, result):
     if exercise == "deadlift":
         return ["KEEP BACK NEUTRAL", "HINGE AT THE HIPS"]
 
+    if exercise in ("lat_pulldown", "close_grip_lat_pulldown"):
+        return ["KEEP TORSO CONTROLLED", "DRIVE ELBOWS DOWN", "CONTROL THE RETURN"]
+
     if exercise == "front_raise":
         return ["KEEP TORSO STILL", "RAISE BOTH ARMS EVENLY"]
 
@@ -2921,8 +3871,59 @@ def instruction_lines(exercise, result):
     if exercise == "reverse_lunge":
         return ["CHEST UP", "KEEP FRONT KNEE ALIGNED"]
 
+    if exercise in ("bulgarian_split_squat", "walking_lunge", "curtsy_lunge", "lateral_lunge"):
+        return ["CHEST UP", "KEEP FRONT KNEE ALIGNED", "CONTROL THE DESCENT"]
+
+    if exercise in ("romanian_deadlift", "stiff_leg_deadlift", "cable_pull_through"):
+        return ["KEEP BACK NEUTRAL", "HINGE AT THE HIPS", "CONTROL THE RETURN"]
+
+    if exercise in ("leg_extension", "leg_curl", "seated_leg_curl", "nordic_hamstring_curl"):
+        return ["KEEP KNEE CONTROLLED", "MOVE THROUGH A CONTROLLED RANGE"]
+
+    if exercise in ("box_squat", "wall_sit", "sissy_squat"):
+        return ["KEEP KNEES ALIGNED", "KEEP CHEST UP", "CONTROL YOUR DEPTH"]
+
+    if exercise in ("hip_thrust", "barbell_hip_thrust", "donkey_kick", "fire_hydrant", "clamshell", "frog_pump"):
+        return ["CONTROL HIP MOVEMENT", "SQUEEZE THE GLUTES", "DON'T OVERARCH"]
+
     if exercise == "chest_fly":
         return ["KEEP SHOULDERS STABLE", "CONTROL OPEN AND CLOSE"]
+
+    if exercise in ("high_cable_crossover","pec_deck","svend_press"):
+        return ["KEEP SHOULDERS STABLE", "PRESS/BRING HANDS TOGETHER WITH CONTROL"]
+    if exercise in ("pull_up","chin_up","assisted_pull_up"):
+        return ["DRIVE ELBOWS DOWN", "KEEP TORSO CONTROLLED", "CONTROL THE LOWERING"]
+    if exercise == "dumbbell_pullover":
+        return ["KEEP ELBOWS SOFT", "KEEP RIBS CONTROLLED", "MOVE THROUGH A CONTROLLED ARC"]
+    if exercise == "banded_glute_bridge":
+        return ["KEEP KNEES OUT", "SQUEEZE GLUTES", "DON'T OVERARCH"]
+    if exercise in ("crunch","bicycle_crunch","reverse_crunch","v_up"):
+        return ["LIFT WITH YOUR CORE", "KEEP NECK RELAXED", "CONTROL BOTH DIRECTIONS"]
+    if exercise in ("leg_raise","hanging_leg_raise","knee_raise","flutter_kick"):
+        return ["KEEP LEGS CONTROLLED", "DON'T SWING", "CONTROL THE LOWERING"]
+    if exercise == "russian_twist":
+        return ["KEEP CORE BRACED", "ROTATE WITH CONTROL", "DON'T SWING"]
+    if exercise == "dead_bug":
+        return ["KEEP LOWER BACK CONTROLLED", "MOVE OPPOSITE ARM AND LEG SLOWLY"]
+    if exercise == "bird_dog":
+        return ["KEEP HIPS LEVEL", "REACH LONG", "DON'T ROTATE TORSO"]
+    if exercise == "hollow_body_hold":
+        return ["KEEP RIBS DOWN", "KEEP LOWER BACK CONTROLLED", "HOLD STEADY"]
+
+    if exercise in ("heel_touch","side_plank","pallof_press"):
+        return ["KEEP CORE BRACED", "MOVE WITH CONTROL", "KEEP HIPS ALIGNED"]
+    if exercise in ("seated_calf_raise","standing_calf_raise","donkey_calf_raise","single_leg_calf_raise"):
+        return ["KEEP KNEES STABLE", "RISE WITH CONTROL", "CONTROL THE LOWERING"]
+    if exercise in ("kettlebell_swing","kettlebell_clean","clean_and_press"):
+        return ["HINGE AT THE HIPS", "KEEP BACK NEUTRAL", "CONTROL THE RETURN"]
+    if exercise in ("thruster","jump_squat","box_jump","tuck_jump"):
+        return ["KEEP KNEES ALIGNED", "LAND SOFTLY", "CONTROL THE DESCENT"]
+    if exercise in ("high_knees","butt_kicks","skater_jumps","lateral_shuffle","shadow_boxing"):
+        return ["STAY CONTROLLED", "KEEP POSTURE TALL", "LAND / MOVE SOFTLY"]
+    if exercise in ("bear_crawl","inchworm","man_maker","turkish_get_up"):
+        return ["KEEP CORE BRACED", "MOVE SLOWLY", "CONTROL EVERY TRANSITION"]
+    if exercise in ("world_s_greatest_stretch","cat_cow","thoracic_rotation","hip_flexor_stretch","hamstring_stretch","quad_stretch","child_s_pose","downward_dog","shoulder_dislocates","ankle_dorsiflexion"):
+        return ["MOVE GENTLY", "USE A COMFORTABLE RANGE", "DO NOT FORCE THE STRETCH"]
 
     return [
         "FOLLOW THE YELLOW GUIDE",
