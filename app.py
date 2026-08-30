@@ -26,6 +26,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
+# Local/mobile development: never let Chrome serve a stale offline copy of the app.
+# API requests already use no-store; this also covers the HTML/CSS/JS shell.
+@app.after_request
+def disable_browser_cache(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 # Persist a local secret so login sessions survive normal server restarts.
 SECRET_FILE = BASE / ".formfit_secret_key"
 if SECRET_FILE.exists():
@@ -451,17 +460,41 @@ def register():
     now = datetime.now(timezone.utc).isoformat()
     try:
         with db() as conn:
-            cur = conn.execute(
-                "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id",
-                (email, generate_password_hash(password), now),
-            )
-            user_id = inserted_id(cur)
+            password_hash = generate_password_hash(password)
+
+            # Keep SQLite and Postgres insertion paths explicit. This avoids
+            # relying on SQLite RETURNING support and makes local development
+            # behave the same way as the hosted Postgres database.
+            if conn.postgres:
+                cur = conn.execute(
+                    "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id",
+                    (email, password_hash, now),
+                )
+                user_id = int(cur.fetchone()["id"])
+            else:
+                cur = conn.execute(
+                    "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?)",
+                    (email, password_hash, now),
+                )
+                user_id = int(cur.lastrowid)
     except Exception as exc:
         if isinstance(exc, sqlite3.IntegrityError) or (
             psycopg is not None and isinstance(exc, psycopg.errors.UniqueViolation)
         ):
             return jsonify({"error": "An account with this email already exists"}), 409
-        raise
+
+        # Keep auth failures JSON instead of Flask's HTML 500 page so the
+        # mobile/desktop auth UI can show a useful message.
+        app.logger.exception("Account registration failed")
+        # Keep production responses generic, but expose the real local
+        # development error so a broken local database cannot be hidden behind
+        # the same generic message.
+        detail = ""
+        if os.environ.get("FORMFIT_PRODUCTION", "").lower() != "true":
+            detail = f" ({type(exc).__name__}: {exc})"
+        return jsonify({
+            "error": "Could not create account. Please try again." + detail
+        }), 503
 
     session.clear()
     session.permanent = True
@@ -475,8 +508,12 @@ def login():
     email = normalize_email(payload.get("email"))
     password = str(payload.get("password") or "")
 
-    with db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    try:
+        with db() as conn:
+            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    except Exception:
+        app.logger.exception("Account login failed")
+        return jsonify({"error": "Login service is temporarily unavailable. Please try again."}), 503
 
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "Incorrect email or password"}), 401
