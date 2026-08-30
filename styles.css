@@ -1330,3 +1330,599 @@ nav{display:grid;gap:7px}.nav-item{border:1px solid transparent;background:trans
   }
 }
 
+
+/* ============================================================
+   FORMFIT MOBILE V2 — PROFESSIONAL PHONE UI
+   UI ONLY. Desktop styles and app/pose/camera logic are untouched.
+   ============================================================ */
+@media (max-width: 700px) {
+  :root {
+    --mobile-gutter: 14px;
+    --mobile-radius: 18px;
+    --mobile-nav-h: 72px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom));
+    background: #050d10;
+  }
+
+  .app-shell {
+    width: 100%;
+    min-height: 100dvh;
+  }
+
+  .main {
+    width: 100%;
+    padding: 14px var(--mobile-gutter) 34px;
+  }
+
+  /* ---------- App header ---------- */
+  .topbar {
+    position: relative;
+    display: flex;
+    min-height: 54px;
+    margin: 0 0 14px;
+    padding: 4px 0 13px;
+    border-bottom: 1px solid rgba(104, 140, 145, .12);
+  }
+
+  .topbar > div:first-child {
+    min-width: 0;
+    padding-right: 72px;
+  }
+
+  .topbar .eyebrow {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 8px;
+    letter-spacing: 1.7px;
+  }
+
+  .topbar h1 {
+    max-width: 250px;
+    margin: 0;
+    font: 800 20px/1.12 Manrope, Inter, sans-serif;
+    letter-spacing: -.35px;
+  }
+
+  .account-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 34px;
+    padding: 0 11px;
+    border-radius: 999px;
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* ---------- Bottom app navigation ---------- */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: var(--mobile-nav-h);
+    padding: 6px 7px calc(6px + env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgba(117, 255, 178, .12);
+    background: rgba(4, 12, 15, .92);
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, .28);
+    backdrop-filter: blur(22px) saturate(125%);
+    -webkit-backdrop-filter: blur(22px) saturate(125%);
+  }
+
+  .sidebar nav {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+    overflow: visible;
+  }
+
+  .nav-item {
+    width: 100%;
+    min-width: 0;
+    height: 58px;
+    min-height: 58px;
+    padding: 6px 2px 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    color: #70868b;
+    font-size: 17px;
+    line-height: 1;
+    background: transparent;
+    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+  }
+
+  .nav-item span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 600 7px/1.1 Inter, sans-serif;
+    letter-spacing: .15px;
+  }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: rgba(121, 242, 164, .075);
+    border-color: rgba(121, 242, 164, .12);
+    box-shadow: inset 0 2px 0 var(--accent), 0 4px 16px rgba(0, 0, 0, .12);
+  }
+
+  .nav-item:active {
+    transform: scale(.95);
+  }
+
+  /* ---------- Shared mobile sections/cards ---------- */
+  .section-head {
+    margin-bottom: 14px;
+  }
+
+  .section-head h2 {
+    font-size: 25px;
+    line-height: 1.08;
+    letter-spacing: -.45px;
+  }
+
+  .section-head p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .feature-grid,
+  .exercise-grid,
+  .choice-grid,
+  .meal-choice-grid {
+    gap: 10px;
+  }
+
+  .exercise-card,
+  .feature-card,
+  .day-card,
+  .history-card {
+    border-radius: var(--mobile-radius);
+  }
+
+  .primary-btn,
+  .secondary-btn,
+  .ghost-btn {
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  /* ---------- Home ---------- */
+  .hero {
+    width: 100%;
+    border-radius: 21px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+  }
+
+  .hero-copy {
+    padding: 24px 20px 22px;
+  }
+
+  .hero h2 {
+    margin-top: 13px;
+    font-size: 34px;
+    line-height: 1.03;
+    letter-spacing: -1px;
+  }
+
+  .hero p {
+    margin-top: 12px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .hero-actions {
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .hero-actions .big {
+    min-height: 47px;
+  }
+
+  .hero-visual {
+    min-height: 215px;
+  }
+
+  .stats-row {
+    gap: 9px;
+    margin: 12px 0 18px;
+  }
+
+  .stat-card {
+    min-height: 94px;
+    padding: 13px 10px;
+    border-radius: 15px;
+  }
+
+  .stat-card strong {
+    font-size: 21px;
+  }
+
+  /* ---------- Library ---------- */
+  .library-head {
+    display: block;
+  }
+
+  .library-tools {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .exercise-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-card {
+    padding: 16px;
+  }
+
+  /* ---------- Form checker ---------- */
+  #formView .form-dashboard {
+    min-height: 0;
+    gap: 10px;
+  }
+
+  #formView .form-topline {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #formView .form-title-wrap {
+    min-width: 0;
+    display: block;
+    flex: 1 1 auto;
+  }
+
+  #formView .form-title-wrap .eyebrow {
+    font-size: 8px;
+    letter-spacing: 1.6px;
+  }
+
+  #formView .form-title-wrap h2 {
+    max-width: 100%;
+    margin: 6px 0 0;
+    padding: 0;
+    min-height: 0;
+    display: block;
+    overflow: hidden;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: #fff;
+    font: 800 24px/1.08 Manrope, Inter, sans-serif;
+    letter-spacing: -.45px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: none;
+  }
+
+  #formView .run-pill {
+    flex: 0 0 auto;
+    padding: 7px 9px;
+    font-size: 8px;
+    letter-spacing: .55px;
+  }
+
+  #formView .run-pill span {
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+  }
+
+  #formView .form-session-bar {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 10px;
+    line-height: 1.35;
+    color: #cfe0de;
+  }
+
+  #formView .form-main-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  /* Camera is deliberately the visual priority on phones. */
+  #formView .form-camera-card {
+    order: 1;
+    width: 100%;
+    min-height: 0;
+    border-radius: 19px;
+    box-shadow: 0 16px 42px rgba(0, 0, 0, .26);
+  }
+
+  #formView .form-camera-card .camera-placeholder {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 4 / 5;
+    padding: 18px;
+  }
+
+  #formView .form-camera-card .camera-placeholder video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #formView .camera-placeholder h3 {
+    font-size: 18px;
+  }
+
+  #formView .camera-placeholder p {
+    max-width: 300px;
+    margin: 0 0 4px;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  #formView .camera-placeholder .primary-btn {
+    min-width: 150px;
+  }
+
+  /* Coaching becomes a compact, readable action card. */
+  #formView .form-coaching-card {
+    order: 2;
+    min-height: 0;
+    padding: 14px;
+    border-radius: 18px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, .18);
+  }
+
+  #formView .reps-card {
+    min-height: 132px;
+    padding: 15px;
+    border-radius: 15px;
+  }
+
+  #formView .reps-card-head span:first-child {
+    font-size: 9px;
+    letter-spacing: 1.6px;
+  }
+
+  #formView .reps-card > strong {
+    font-size: 52px;
+    line-height: .95;
+    margin: 11px 0 7px;
+  }
+
+  #formView .reps-card > em {
+    font-size: 9px;
+  }
+
+  #formView .panel-eyebrow {
+    margin: 14px 0 8px;
+    font-size: 9px;
+  }
+
+  #formView .coach-status {
+    margin: 0 0 9px;
+    padding: 11px 12px;
+    border-radius: 11px;
+    font-size: 13px;
+  }
+
+  #formView .feedback-row {
+    gap: 9px;
+    padding: 11px 2px;
+    font-size: 11px;
+  }
+
+  #formView .form-coaching-card .full {
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  #formView .mini-session-stats {
+    margin-top: 12px;
+    gap: 8px;
+  }
+
+  #formView .mini-session-stats > div {
+    padding: 10px 8px;
+    border-radius: 11px;
+  }
+
+  /* Metrics/demo follow coaching instead of competing with camera. */
+  #formView .form-left-metrics {
+    order: 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  #formView .form-left-metrics .metric-card {
+    min-height: 104px;
+    padding: 12px 8px;
+    border-radius: 15px;
+  }
+
+  #formView .form-left-metrics .score-card {
+    min-height: 130px;
+  }
+
+  #formView .form-left-metrics .score-ring {
+    width: 68px;
+    height: 68px;
+    margin: 6px 0 2px;
+  }
+
+  #formView .form-left-metrics .metric-card > strong {
+    font-size: 25px;
+  }
+
+  #formView .form-left-metrics .premapped-demo-card,
+  #formView .form-left-metrics .guide-card {
+    grid-column: 1 / -1;
+  }
+
+  #formView .premapped-demo-card {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  #formView .premapped-demo-head {
+    gap: 8px;
+  }
+
+  #formView .premapped-demo-frame {
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    max-height: none;
+    border-radius: 12px;
+  }
+
+  #formView .premapped-demo-iframe {
+    width: 100%;
+    height: 100%;
+  }
+
+  #formView .tip-strip {
+    min-height: 0;
+    padding: 10px 11px;
+    gap: 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
+  #formView .tip-icon {
+    flex: 0 0 27px;
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+  }
+
+  #formView .bottom-status {
+    padding: 9px 3px;
+    font-size: 8px;
+  }
+
+  #formView .analysis-meter {
+    width: 55px;
+    margin: 0 4px;
+  }
+
+  /* ---------- Winter Arc / planner ---------- */
+  .winter-arc-hero {
+    padding: 18px;
+    border-radius: 19px;
+  }
+
+  .winter-arc-hero h2 {
+    margin-top: 10px;
+    font-size: 30px;
+  }
+
+  .winter-arc-badge {
+    min-height: 104px;
+    border-radius: 15px;
+  }
+
+  .winter-builder,
+  .winter-info-card,
+  .winter-output-card {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  /* ---------- Auth overlay ---------- */
+  .auth-overlay {
+    padding: 16px;
+    align-items: flex-end;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+    border-radius: 22px;
+    padding: 22px 18px 18px;
+  }
+}
+
+@media (max-width: 390px) {
+  :root {
+    --mobile-gutter: 11px;
+  }
+
+  .main {
+    padding-top: 11px;
+  }
+
+  .topbar h1 {
+    font-size: 19px;
+  }
+
+  .nav-item {
+    height: 57px;
+    min-height: 57px;
+    border-radius: 13px;
+    font-size: 16px;
+  }
+
+  .nav-item span {
+    font-size: 6.5px;
+  }
+
+  #formView .form-title-wrap h2 {
+    font-size: 22px;
+  }
+
+  #formView .run-pill {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+
+  #formView .form-camera-card .camera-placeholder {
+    aspect-ratio: 3 / 4;
+  }
+
+  #formView .form-left-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .library-tools {
+    grid-template-columns: minmax(0, 1fr) 104px;
+  }
+}
